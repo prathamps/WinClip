@@ -119,6 +119,9 @@ class Settings:
     capture_images: bool = True
     auto_paste: bool = True
     paste_tool: str = "auto"  # auto | none | ydotool | wtype | xdotool
+    # Show the shell-command history tab. Off = WinClip never reads
+    # shell history files at all.
+    show_commands: bool = True
 
     def __post_init__(self) -> None:
         if self.max_items < 1:

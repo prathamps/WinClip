@@ -70,6 +70,8 @@ class WinClipApplication(Gtk.Application):
                 manage=self._container.manage,
                 activate=self._container.activate,
                 settings=self._container.settings,
+                activate_snippet=self._container.activate_snippet,
+                query_commands=self._container.query_commands,
             )
         return self._window
 

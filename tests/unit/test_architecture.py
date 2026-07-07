@@ -42,7 +42,15 @@ def test_layer_respects_dependency_rule(layer):
 
 def test_domain_uses_only_stdlib():
     allowed_prefixes = ("winclip.domain", ".", "__future__")
-    stdlib = {"dataclasses", "datetime", "enum", "hashlib", "collections.abc", "typing"}
+    stdlib = {
+        "dataclasses",
+        "datetime",
+        "enum",
+        "hashlib",
+        "shlex",
+        "collections.abc",
+        "typing",
+    }
     for py in (SRC / "domain").rglob("*.py"):
         for imported in imports_of(py):
             ok = imported in stdlib or imported.startswith(allowed_prefixes)

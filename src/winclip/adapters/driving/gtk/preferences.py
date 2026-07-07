@@ -44,6 +44,11 @@ class PreferencesDialog(Gtk.Dialog):
         self._auto_paste.set_active(current.auto_paste)
         self._attach(grid, 2, "Paste automatically on select", self._auto_paste)
 
+        self._show_commands = Gtk.Switch(halign=Gtk.Align.START)
+        self._show_commands.set_active(current.show_commands)
+        self._attach(grid, 3, "Shell commands tab (reads shell history)",
+                     self._show_commands)
+
         self.get_content_area().add(grid)
         grid.show_all()
 
@@ -61,6 +66,7 @@ class PreferencesDialog(Gtk.Dialog):
                 max_items=int(self._max_items.get_value()),
                 capture_images=self._capture_images.get_active(),
                 auto_paste=self._auto_paste.get_active(),
+                show_commands=self._show_commands.get_active(),
             )
             self._settings.update_settings(updated)
         self.destroy()
