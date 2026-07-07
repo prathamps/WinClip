@@ -7,6 +7,10 @@ recreates the Windows 11 clipboard panel: press <kbd>Super</kbd>+<kbd>V</kbd>,
 see everything you've copied, click an item, and it's pasted into the app you
 came from.
 
+<p align="center">
+  <img src="docs/demo.gif" alt="WinClip demo: clipboard history, emoji search, kaomoji, and tool-grouped shell command history" width="437">
+</p>
+
 ## Features
 
 - **Clipboard history** — every text snippet and image you copy is captured

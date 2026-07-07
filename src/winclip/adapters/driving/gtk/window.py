@@ -100,6 +100,12 @@ row.clip-card-row:selected {
     background: transparent;
     outline: none;
 }
+/* Selection must not recolor card text: the card keeps its own
+   background, so the theme's selected-row foreground (white on light
+   themes) would be unreadable. */
+row.clip-card-row:selected label {
+    color: @theme_fg_color;
+}
 .clip-text {
     font-size: 0.92em;
 }
