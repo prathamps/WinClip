@@ -89,14 +89,18 @@ class CommandsPage(Gtk.Box):
         self._query_commands = query_commands
         self._on_activate = on_activate
         self._search = ""
+        self._tool: str | None = None
 
-        self._tool_picker = Gtk.ComboBoxText()
-        self._tool_picker.set_margin_start(10)
-        self._tool_picker.set_margin_end(10)
-        self._picker_handler = self._tool_picker.connect(
-            "changed", lambda _c: self._rebuild_list()
-        )
-        self.pack_start(self._tool_picker, False, False, 0)
+        # Tool filter as a horizontal chip row — deliberately not a
+        # dropdown: popups steal focus from the panel, and the panel's
+        # hide-on-focus-out would dismiss them instantly.
+        self._chip_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        chip_scroller = Gtk.ScrolledWindow()
+        chip_scroller.set_policy(Gtk.PolicyType.EXTERNAL, Gtk.PolicyType.NEVER)
+        chip_scroller.set_margin_start(10)
+        chip_scroller.set_margin_end(10)
+        chip_scroller.add(self._chip_row)
+        self.pack_start(chip_scroller, False, False, 0)
 
         self._list = Gtk.ListBox()
         self._list.set_selection_mode(Gtk.SelectionMode.SINGLE)
@@ -124,26 +128,41 @@ class CommandsPage(Gtk.Box):
         return label
 
     def refresh(self) -> None:
-        """Re-read history and rebuild the tool picker + command list."""
-        selected = self._selected_tool()
-        with self._tool_picker.handler_block(self._picker_handler):
-            self._tool_picker.remove_all()
-            self._tool_picker.append("", "All tools")
-            for usage in self._query_commands.tools()[:30]:
-                self._tool_picker.append(
-                    usage.tool, f"{usage.tool} ({usage.count})"
-                )
-            if not self._tool_picker.set_active_id(selected or ""):
-                self._tool_picker.set_active_id("")
+        """Re-read history and rebuild the tool chips + command list."""
+        tools = self._query_commands.tools()[:12]
+        if self._tool not in {u.tool for u in tools}:
+            self._tool = None
+        for child in self._chip_row.get_children():
+            self._chip_row.remove(child)
+        self._add_chip("All", None, selected=self._tool is None)
+        for usage in tools:
+            self._add_chip(
+                f"{usage.tool} ({usage.count})",
+                usage.tool,
+                selected=self._tool == usage.tool,
+            )
+        self._chip_row.show_all()
         self._rebuild_list()
+
+    def _add_chip(self, label: str, tool: str | None, selected: bool) -> None:
+        chip = Gtk.Button(label=label)
+        chip.set_relief(Gtk.ReliefStyle.NONE)
+        chip.get_style_context().add_class("tool-chip")
+        if selected:
+            chip.get_style_context().add_class("tool-chip-active")
+        chip.connect("clicked", lambda _b, t=tool: self._on_chip(t))
+        self._chip_row.pack_start(chip, False, False, 0)
+
+    def _on_chip(self, tool: str | None) -> None:
+        self._tool = tool
+        self.refresh()
 
     def set_filter(self, query: str) -> None:
         self._search = query.strip()
         self._rebuild_list()
 
     def _selected_tool(self) -> str | None:
-        active = self._tool_picker.get_active_id()
-        return active or None
+        return self._tool
 
     def _rebuild_list(self) -> None:
         for child in self._list.get_children():
@@ -181,5 +200,11 @@ class CommandsPage(Gtk.Box):
         row = self._list.get_selected_row()
         if row is not None:
             self._on_row_activated(self._list, row)
+            return True
+        return False
+
+    def focus_list(self) -> bool:
+        if self._list.get_row_at_index(0) is not None:
+            self._list.grab_focus()
             return True
         return False

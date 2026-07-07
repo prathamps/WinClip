@@ -152,6 +152,16 @@ row.clip-card-row:selected .card-actions,
     font-family: monospace;
     font-size: 0.85em;
 }
+.tool-chip {
+    border-radius: 99px;
+    padding: 1px 10px;
+    font-size: 0.8em;
+    background-color: alpha(@theme_fg_color, 0.07);
+}
+.tool-chip-active {
+    background-color: @theme_selected_bg_color;
+    color: @theme_selected_fg_color;
+}
 """
 
 
@@ -174,13 +184,14 @@ class HistoryWindow(Gtk.ApplicationWindow):
         self._activate_snippet = activate_snippet
         self._query_commands = query_commands
 
-        self.set_default_size(380, 500)
+        self.set_default_size(360, 480)
         self.set_type_hint(Gdk.WindowTypeHint.DIALOG)
         self.set_skip_taskbar_hint(True)
         self.set_position(Gtk.WindowPosition.CENTER)
         self.set_keep_above(True)
         self.get_style_context().add_class("winclip-panel")
         self._shown_at: int = 0
+        self._dialog_open = False
 
         # An empty client-side titlebar removes the compositor's
         # server-side decorations (set_decorated(False) alone still gets
@@ -441,9 +452,16 @@ class HistoryWindow(Gtk.ApplicationWindow):
         self.refresh()
 
     def _on_preferences(self, _btn) -> None:
-        dialog = PreferencesDialog(self, self._settings)
-        dialog.run_and_apply()
-        self.refresh()
+        # The modal dialog takes focus; suspend hide-on-focus-out so the
+        # panel (the dialog's parent) doesn't vanish underneath it.
+        self._dialog_open = True
+        try:
+            dialog = PreferencesDialog(self, self._settings)
+            dialog.run_and_apply()
+        finally:
+            self._dialog_open = False
+        self._shown_at = GLib.get_monotonic_time()
+        self.present_panel()
 
     def _on_key_press(self, _widget, event) -> bool:
         keyval = event.keyval
@@ -458,6 +476,13 @@ class HistoryWindow(Gtk.ApplicationWindow):
             return True
 
         page = self._stack.get_visible_child_name()
+        if keyval == Gdk.KEY_Down and self._search.has_focus():
+            if page == "clips":
+                self._list.grab_focus()
+                return True
+            if page == "commands":
+                return self._commands_page.focus_list()
+            return False
         if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
             if page == "clips":
                 row = self._list.get_selected_row()
@@ -502,6 +527,8 @@ class HistoryWindow(Gtk.ApplicationWindow):
         # A short grace period absorbs the spurious focus-out some
         # compositors emit while the panel is still being mapped and
         # focused — without it the panel can hide before it is ever seen.
+        if self._dialog_open:
+            return False
         if GLib.get_monotonic_time() - self._shown_at < 500_000:  # 0.5 s
             return False
         self.hide()
