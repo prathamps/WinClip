@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=WinClip
+GenericName=Clipboard History
+Comment=Windows-style clipboard history (Win+V) for Linux
+Exec=winclip toggle
+Icon=edit-paste
+Terminal=false
+Categories=Utility;GTK;
+Keywords=clipboard;history;paste;
+StartupNotify=false
+X-GNOME-UsesNotifications=true
