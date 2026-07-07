@@ -52,14 +52,49 @@ systemctl --user daemon-reload
 systemctl --user enable --now winclip.service
 say "Daemon status: $(systemctl --user is-active winclip.service)"
 
-# --- 4. Super+V keybinding (GNOME) ------------------------------------------
-if command -v gsettings >/dev/null && [[ "${XDG_CURRENT_DESKTOP:-}" == *GNOME* ]]; then
+# --- 4. Super+V keybinding ---------------------------------------------------
+# XDG_CURRENT_DESKTOP is unreliable (Pop!_OS COSMIC sessions may report
+# GNOME), so detect the running compositor/shell instead.
+bind_cosmic() {
+    say "Binding Super+V to the WinClip panel (COSMIC)"
+    local FILE="$HOME/.config/cosmic/com.system76.CosmicSettings.Shortcuts/v1/custom"
+    mkdir -p "$(dirname "$FILE")"
+    [ -f "$FILE" ] || echo "{}" > "$FILE"
+    if grep -q 'winclip toggle' "$FILE"; then
+        say "WinClip shortcut already present"
+        return
+    fi
+    if grep -Pzoq '(?s)Super,\s*\],\s*key: "v"' "$FILE"; then
+        warn "Super+V is already bound in COSMIC — add a shortcut for"
+        warn "'$BIN_DIR/winclip toggle' manually in Settings → Keyboard → Shortcuts"
+        return
+    fi
+    python3 - "$FILE" "$BIN_DIR/winclip toggle" <<'EOF'
+import sys
+path, command = sys.argv[1], sys.argv[2]
+text = open(path).read().strip() or "{}"
+entry = (
+    "    (\n        modifiers: [\n            Super,\n        ],\n"
+    '        key: "v",\n'
+    f'    ): Spawn("{command}"),\n'
+)
+body = text.rstrip()[:-1].rstrip()  # drop trailing }
+if body != "{" and not body.endswith(","):
+    body += ","
+open(path, "w").write(body + "\n" + entry + "}\n")
+EOF
+    say "Super+V is now WinClip (COSMIC reloads shortcuts automatically)"
+}
+
+bind_gnome() {
     say "Binding Super+V to the WinClip panel (GNOME)"
     # GNOME uses Super+V for the notification list; free it up first.
-    gsettings set org.gnome.shell.keybindings toggle-message-tray "[]" || true
-
-    KEYS_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/winclip/"
-    BASE="org.gnome.settings-daemon.plugins.media-keys"
+    if gsettings list-schemas 2>/dev/null | grep -qx org.gnome.shell.keybindings; then
+        gsettings set org.gnome.shell.keybindings toggle-message-tray "[]" || true
+    fi
+    local KEYS_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/winclip/"
+    local BASE="org.gnome.settings-daemon.plugins.media-keys"
+    local CURRENT
     CURRENT=$(gsettings get $BASE custom-keybindings)
     if [[ "$CURRENT" != *"$KEYS_PATH"* ]]; then
         if [[ "$CURRENT" == "@as []" || "$CURRENT" == "[]" ]]; then
@@ -69,13 +104,19 @@ if command -v gsettings >/dev/null && [[ "${XDG_CURRENT_DESKTOP:-}" == *GNOME* ]
         fi
         gsettings set $BASE custom-keybindings "$NEW"
     fi
-    SCHEMA="$BASE.custom-keybinding:$KEYS_PATH"
+    local SCHEMA="$BASE.custom-keybinding:$KEYS_PATH"
     gsettings set "$SCHEMA" name 'WinClip clipboard history'
     gsettings set "$SCHEMA" command "$BIN_DIR/winclip toggle"
     gsettings set "$SCHEMA" binding '<Super>v'
     say "Super+V is now WinClip"
+}
+
+if pgrep -x cosmic-comp >/dev/null 2>&1; then
+    bind_cosmic
+elif pgrep -x gnome-shell >/dev/null 2>&1 && command -v gsettings >/dev/null; then
+    bind_gnome
 else
-    warn "Non-GNOME desktop: bind a shortcut to 'winclip toggle' in your DE settings"
+    warn "Unknown desktop: bind a shortcut to 'winclip toggle' in your DE settings"
 fi
 
 say "Done! Copy something, then press Super+V."

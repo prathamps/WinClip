@@ -18,6 +18,18 @@ fi
 
 say "Removing desktop entry and keybinding"
 rm -f "$HOME/.local/share/applications/io.github.prathamps.WinClip.desktop"
+
+COSMIC_FILE="$HOME/.config/cosmic/com.system76.CosmicSettings.Shortcuts/v1/custom"
+if [ -f "$COSMIC_FILE" ] && grep -q 'winclip toggle' "$COSMIC_FILE"; then
+    python3 - "$COSMIC_FILE" <<'EOF'
+import re, sys
+path = sys.argv[1]
+text = open(path).read()
+# Drop the "( ... ): Spawn("... winclip toggle")," entry.
+text = re.sub(r"\(\s*[^()]*?\)\s*:\s*Spawn\(\"[^\"]*winclip toggle\"\),\n?", "", text)
+open(path, "w").write(text)
+EOF
+fi
 if command -v gsettings >/dev/null; then
     BASE="org.gnome.settings-daemon.plugins.media-keys"
     KEYS_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/winclip/"
