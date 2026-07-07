@@ -252,6 +252,21 @@ class HistoryWindow(Gtk.ApplicationWindow):
         self.connect("key-press-event", self._on_key_press)
         self.connect("focus-out-event", self._on_focus_out)
         self.connect("delete-event", self._on_delete_event)
+        # With no titlebar, let the user drag the panel by any spot that
+        # isn't an interactive widget (header, edges, gaps): clicks on
+        # buttons/entries/rows are consumed before they reach the window.
+        self.connect("button-press-event", self._on_drag_press)
+
+    def _on_drag_press(self, _widget, event) -> bool:
+        if event.button == 1:
+            # Restart the focus-out grace period: some compositors emit a
+            # focus-out for the move grab, which must not dismiss the panel.
+            self._shown_at = GLib.get_monotonic_time()
+            self.begin_move_drag(
+                event.button, int(event.x_root), int(event.y_root), event.time
+            )
+            return True
+        return False
 
     # -- behaviour -----------------------------------------------------
 
