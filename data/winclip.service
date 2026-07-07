@@ -1,0 +1,19 @@
+# systemd user service for the WinClip daemon.
+# Installed to ~/.config/systemd/user/winclip.service by install.sh:
+#   systemctl --user enable --now winclip.service
+
+[Unit]
+Description=WinClip clipboard history daemon
+Documentation=https://github.com/prathamps/WinClip
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=exec
+ExecStart=%h/.local/bin/winclip daemon
+Restart=on-failure
+RestartSec=2
+Slice=background.slice
+
+[Install]
+WantedBy=graphical-session.target
