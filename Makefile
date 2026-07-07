@@ -1,6 +1,6 @@
-.PHONY: dev test lint run install uninstall
+.PHONY: dev test lint run hooks install uninstall
 
-dev:            ## create a dev virtualenv with test tooling
+dev: hooks      ## create a dev virtualenv with test tooling
 	@if command -v uv >/dev/null; then \
 		uv venv --python /usr/bin/python3 --system-site-packages .venv && \
 		uv pip install -e .[dev]; \
@@ -8,6 +8,10 @@ dev:            ## create a dev virtualenv with test tooling
 		python3 -m venv .venv --system-site-packages && \
 		.venv/bin/pip install -e .[dev]; \
 	fi
+
+hooks:          ## enable the repo's pre/post-commit hooks
+	git config core.hooksPath scripts/git-hooks
+	@echo "git hooks enabled (scripts/git-hooks)"
 
 test:           ## run the test suite
 	.venv/bin/pytest

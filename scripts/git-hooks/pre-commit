@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# WinClip pre-commit hook: lint, version sync, and the full (fast)
+# test suite — including the architecture boundary test.
+#
+# Enable with:  make hooks   (sets core.hooksPath to scripts/git-hooks)
+# Bypass once:  git commit --no-verify
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+fail() { printf '\033[1;31mpre-commit:\033[0m %s\n' "$*" >&2; exit 1; }
+step() { printf '\033[1;36mpre-commit:\033[0m %s\n' "$*"; }
+
+# Feature-branch discipline: main only moves via pull requests.
+branch=$(git symbolic-ref --short -q HEAD || echo detached)
+if [ "$branch" = "main" ] && [ "${ALLOW_MAIN:-0}" != "1" ]; then
+    fail "refusing to commit directly to main — use a feature branch (or ALLOW_MAIN=1 to override)"
+fi
+
+# Tooling: prefer the project venv, fall back to whatever is on PATH.
+if [ -x .venv/bin/pytest ] && [ -x .venv/bin/ruff ]; then
+    RUFF=.venv/bin/ruff PYTEST=.venv/bin/pytest
+elif command -v ruff >/dev/null && command -v pytest >/dev/null; then
+    RUFF=ruff PYTEST=pytest
+else
+    fail "ruff/pytest not found — run 'make dev' first"
+fi
+
+step "ruff"
+"$RUFF" check src tests || fail "lint errors (many are auto-fixable: $RUFF check --fix src tests)"
+
+step "version sync (pyproject.toml vs winclip.__version__)"
+python3 - <<'EOF' || exit 1
+import re, sys
+
+pyproject = open("pyproject.toml", encoding="utf-8").read()
+package = open("src/winclip/__init__.py", encoding="utf-8").read()
+pv = re.search(r'^version\s*=\s*"([^"]+)"', pyproject, re.M)
+iv = re.search(r'^__version__\s*=\s*"([^"]+)"', package, re.M)
+if not pv or not iv or pv.group(1) != iv.group(1):
+    print(
+        f"pre-commit: version mismatch: pyproject.toml={pv and pv.group(1)} "
+        f"__init__.py={iv and iv.group(1)}",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+EOF
+
+step "tests"
+"$PYTEST" -q || fail "test suite failed"
+
+step "ok"

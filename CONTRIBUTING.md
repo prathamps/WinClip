@@ -7,10 +7,18 @@ Thanks for helping build a first-class clipboard experience for Linux!
 ```bash
 git clone https://github.com/prathamps/WinClip.git
 cd WinClip
-make dev     # venv (with system PyGObject) + pytest + ruff
+make dev     # venv (with system PyGObject) + pytest + ruff + git hooks
 make test
 make run     # run the daemon from the working tree
 ```
+
+`make dev` also enables the repo's git hooks (`make hooks` to do just
+that). The **pre-commit** hook blocks direct commits to `main` and runs
+ruff, a pyproject/`__version__` sync check, and the full test suite
+(fast — the core is I/O-free). The **post-commit** hook re-runs the
+tests against the committed snapshot when it differs from your working
+tree, catching broken partially-staged commits. Bypass in an emergency
+with `git commit --no-verify`.
 
 System packages you'll want locally: `python3-gi`, `gir1.2-gtk-3.0`,
 `wl-clipboard` (Wayland), and optionally `wtype`/`ydotool`/`xdotool` for
