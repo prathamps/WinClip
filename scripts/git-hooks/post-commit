@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# WinClip post-commit check: verify the *committed snapshot*, not the
+# working tree.
+#
+# The pre-commit hook runs against the working tree, so a partially
+# staged commit (git add -p) can pass checks while the committed code
+# itself is broken. When the worktree and HEAD differ, this hook
+# re-runs the test suite against a clean export of HEAD and warns
+# loudly on failure (post-commit cannot block, but you will know).
+set -uo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+PYTEST="$(pwd)/.venv/bin/pytest"
+[ -x "$PYTEST" ] || exit 0
+
+# Worktree identical to HEAD for everything the tests cover?
+if git diff --quiet HEAD -- src tests pyproject.toml 2>/dev/null; then
+    exit 0  # pre-commit already validated exactly this code
+fi
+
+printf '\033[1;36mpost-commit:\033[0m worktree differs from HEAD — testing the committed snapshot\n'
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+git archive HEAD | tar -x -C "$TMP"
+
+if (cd "$TMP" && PYTHONPATH="$TMP/src" "$PYTEST" -q > "$TMP/pytest.log" 2>&1); then
+    printf '\033[1;32mpost-commit:\033[0m committed snapshot passes the test suite\n'
+else
+    printf '\033[1;31mpost-commit: WARNING — the code you just COMMITTED fails tests\033[0m\n'
+    printf 'post-commit: (your working tree may be fine; the staged subset is not)\n'
+    tail -20 "$TMP/pytest.log"
+    printf 'post-commit: fix and amend:  git add -u && git commit --amend --no-edit\n'
+fi
