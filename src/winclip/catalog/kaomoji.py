@@ -57,10 +57,9 @@ KAOMOJI: dict[str, list[tuple[str, str]]] = {
         ("( ˘ω˘ )ｽﾔｧ", "sleeping peaceful"),
         ("(≖ᴗ≖✿)", "smug satisfied"),
         ("(∪.∪ )...zzz", "napping"),
-        ("ε=ε=ε=┌(;￣▽￣)┘", "running away"),
+        ("ε=┌(;￣▽￣)┘", "running away"),
         ("(ノಠ益ಠ)ノ彡┻━┻", "angry table flip"),
         ("♪┏(・o･)┛♪", "dancing music"),
-        ("(•_•) ( •_•)>⌐■-■ (⌐■_■)", "csi sunglasses"),
     ],
     "Animals": [
         ("(=^･ω･^=)", "cat"),

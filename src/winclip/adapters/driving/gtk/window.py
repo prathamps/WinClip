@@ -63,9 +63,10 @@ window.winclip-panel box.titlebar {
     font-size: 1.0em;
 }
 .clear-all {
-    font-size: 0.85em;
+    font-size: 0.8em;
     color: @theme_selected_bg_color;
-    padding: 2px 8px;
+    padding: 1px 6px;
+    min-width: 0;
 }
 .icon-button {
     padding: 2px;
@@ -125,9 +126,10 @@ row.clip-card-row:selected .card-actions,
 }
 /* Tab switcher in the header, kept compact. */
 .panel stackswitcher button {
-    padding: 2px 8px;
-    min-height: 24px;
-    font-size: 1.0em;
+    padding: 0px 5px;
+    min-height: 20px;
+    min-width: 0;
+    font-size: 0.85em;
 }
 .category-title {
     font-weight: 600;
@@ -229,11 +231,11 @@ class HistoryWindow(Gtk.ApplicationWindow):
         panel.get_style_context().add_class("panel")
 
         # Header: tab switcher | Clear all | gear — like the Win+V flyout.
-        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        header.set_margin_top(10)
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        header.set_margin_top(8)
         header.set_margin_bottom(6)
-        header.set_margin_start(10)
-        header.set_margin_end(10)
+        header.set_margin_start(8)
+        header.set_margin_end(8)
 
         self._stack = Gtk.Stack()
         self._stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
@@ -468,11 +470,21 @@ class HistoryWindow(Gtk.ApplicationWindow):
         if keyval == Gdk.KEY_Escape:
             self.hide()
             return True
-        if (
-            keyval == Gdk.KEY_Tab
-            and event.state & Gdk.ModifierType.CONTROL_MASK
-        ):
+        ctrl = event.state & Gdk.ModifierType.CONTROL_MASK
+        shift = event.state & Gdk.ModifierType.SHIFT_MASK
+        if keyval in (Gdk.KEY_Tab, Gdk.KEY_ISO_Left_Tab) and ctrl:
+            self._cycle_page(backwards=bool(shift))
+            return True
+        # Ctrl+PgDn/PgUp: the GTK-conventional tab switch.
+        if keyval == Gdk.KEY_Page_Down and ctrl:
             self._cycle_page()
+            return True
+        if keyval == Gdk.KEY_Page_Up and ctrl:
+            self._cycle_page(backwards=True)
+            return True
+        # Alt+1..5 jumps straight to a tab.
+        if event.state & Gdk.ModifierType.MOD1_MASK and Gdk.KEY_1 <= keyval <= Gdk.KEY_5:
+            self._jump_to_page(keyval - Gdk.KEY_1)
             return True
 
         page = self._stack.get_visible_child_name()
@@ -482,7 +494,7 @@ class HistoryWindow(Gtk.ApplicationWindow):
                 return True
             if page == "commands":
                 return self._commands_page.focus_list()
-            return False
+            return self._snippet_page(page).focus_first_visible()
         if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
             if page == "clips":
                 row = self._list.get_selected_row()
@@ -491,7 +503,12 @@ class HistoryWindow(Gtk.ApplicationWindow):
                 return True
             if page == "commands":
                 return self._commands_page.activate_selected()
-            return False  # snippet grids: let the focused button handle it
+            # Snippet grids: Enter in the search box inserts the first
+            # match, like the Windows emoji panel. A focused button
+            # handles its own Enter.
+            if self._search.has_focus():
+                return self._snippet_page(page).activate_first_visible()
+            return False
 
         if page != "clips":
             return False
@@ -510,17 +527,33 @@ class HistoryWindow(Gtk.ApplicationWindow):
             return True
         return False
 
-    def _cycle_page(self) -> None:
-        names = [
+    def _snippet_page(self, name: str):
+        return {
+            "emoji": self._emoji_page,
+            "kaomoji": self._kaomoji_page,
+            "symbols": self._symbols_page,
+        }[name]
+
+    def _visible_page_names(self) -> list[str]:
+        return [
             self._stack.child_get_property(child, "name")
             for child in self._stack.get_children()
             if child.get_visible()
         ]
+
+    def _cycle_page(self, backwards: bool = False) -> None:
+        names = self._visible_page_names()
         current = self._stack.get_visible_child_name()
         if current in names:
+            step = -1 if backwards else 1
             self._stack.set_visible_child_name(
-                names[(names.index(current) + 1) % len(names)]
+                names[(names.index(current) + step) % len(names)]
             )
+
+    def _jump_to_page(self, index: int) -> None:
+        names = self._visible_page_names()
+        if index < len(names):
+            self._stack.set_visible_child_name(names[index])
 
     def _on_focus_out(self, _widget, _event) -> bool:
         # Behave like the Win+V flyout: clicking elsewhere dismisses it.

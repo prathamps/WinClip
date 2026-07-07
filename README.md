@@ -83,9 +83,10 @@ history and settings).
 | Action | How |
 |---|---|
 | Open/close the panel | <kbd>Super</kbd>+<kbd>V</kbd> (or `winclip toggle`) |
-| Switch tabs (clips / emoji / kaomoji / symbols / commands) | Click, or <kbd>Ctrl</kbd>+<kbd>Tab</kbd> |
+| Switch tabs (clips / emoji / kaomoji / symbols / commands) | Click, <kbd>Ctrl</kbd>+<kbd>Tab</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Tab</kbd>, <kbd>Ctrl</kbd>+<kbd>PgDn</kbd>/<kbd>PgUp</kbd>, or <kbd>Alt</kbd>+<kbd>1</kbd>–<kbd>5</kbd> |
 | Paste an item | Click it, or <kbd>↑</kbd>/<kbd>↓</kbd> + <kbd>Enter</kbd> |
 | Search the active tab | Just type in the search box |
+| Search → keyboard pick | <kbd>↓</kbd> moves into the list/grid; on emoji tabs <kbd>Enter</kbd> inserts the first match |
 | Pin / unpin | Pin button, or <kbd>Ctrl</kbd>+<kbd>P</kbd> |
 | Delete an item | ✕ button, or <kbd>Del</kbd> |
 | Clear history (keeps pinned) | *Clear all* button |

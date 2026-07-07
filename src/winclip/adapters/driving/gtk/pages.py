@@ -76,6 +76,31 @@ class SnippetPage(Gtk.ScrolledWindow):
             title.set_visible(visible > 0)
             grid.set_visible(visible > 0)
 
+    def _first_visible_button(self) -> Gtk.Button | None:
+        for _title, grid, widgets in self._sections:
+            if not grid.get_visible():
+                continue
+            for button, _text, _haystack in widgets:
+                if button.get_parent().get_visible():
+                    return button
+        return None
+
+    def focus_first_visible(self) -> bool:
+        """Move keyboard focus into the grid (arrow keys take over)."""
+        button = self._first_visible_button()
+        if button is not None:
+            button.grab_focus()
+            return True
+        return False
+
+    def activate_first_visible(self) -> bool:
+        """Insert the best match — Enter in the search box, Windows-style."""
+        button = self._first_visible_button()
+        if button is not None:
+            button.clicked()
+            return True
+        return False
+
 
 class CommandsPage(Gtk.Box):
     """Shell history browser: pick a tool, click a command to paste it."""
@@ -95,8 +120,11 @@ class CommandsPage(Gtk.Box):
         # dropdown: popups steal focus from the panel, and the panel's
         # hide-on-focus-out would dismiss them instantly.
         self._chip_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        # AUTOMATIC keeps the scroller's minimum width tiny; NEVER/EXTERNAL
+        # would propagate the full chip-row width into the panel's
+        # minimum size and stretch the window.
         chip_scroller = Gtk.ScrolledWindow()
-        chip_scroller.set_policy(Gtk.PolicyType.EXTERNAL, Gtk.PolicyType.NEVER)
+        chip_scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER)
         chip_scroller.set_margin_start(10)
         chip_scroller.set_margin_end(10)
         chip_scroller.add(self._chip_row)
