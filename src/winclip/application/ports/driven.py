@@ -58,6 +58,14 @@ class SettingsRepository(Protocol):
     def save(self, settings: Settings) -> None: ...
 
 
+class CommandHistorySource(Protocol):
+    """Access to the user's shell command history."""
+
+    def recent_commands(self) -> list[str]:
+        """Raw command lines, oldest first. Empty when unavailable."""
+        ...
+
+
 class Clock(Protocol):
     def now(self) -> datetime: ...
 

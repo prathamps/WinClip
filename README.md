@@ -7,6 +7,10 @@ recreates the Windows 11 clipboard panel: press <kbd>Super</kbd>+<kbd>V</kbd>,
 see everything you've copied, click an item, and it's pasted into the app you
 came from.
 
+<p align="center">
+  <img src="docs/demo.gif" alt="WinClip demo: clipboard history, emoji search, kaomoji, and tool-grouped shell command history" width="437">
+</p>
+
 ## Features
 
 - **Clipboard history** — every text snippet and image you copy is captured
@@ -19,6 +23,14 @@ came from.
   (via `ydotool`/`wtype`/`xdotool`; falls back to copy-only with a
   notification when no injection tool is available).
 - **Pin items** — pinned entries are never evicted and survive *Clear all*.
+- **Emoji, kaomoji & symbols** — searchable picker tabs (😊 / (ツ) / Ω),
+  just like the Windows panel: click to paste ¯\\\_(ツ)\_/¯, →, ₹, or 🚀
+  into whatever you're writing.
+- **Shell command history** — a ❯\_ tab that reads your bash/zsh/fish
+  history and groups it by tool (docker, npm, kubectl, …) with
+  zoxide-style frecency ranking: click a command to paste it into your
+  terminal. Can be disabled in Preferences if you'd rather it never
+  read shell history.
 - **Windows-faithful semantics** — re-copying an existing item moves it to
   the top instead of duplicating it; history is capped (50 items by default)
   with a 4 MiB per-item limit; oldest unpinned items are evicted first.
@@ -29,7 +41,25 @@ came from.
 - **No pip dependencies** — pure Python standard library plus the
   system-packaged PyGObject/GTK 3 and `wl-clipboard`.
 
-## Installation (Debian / Ubuntu)
+## Installation
+
+### Debian package (recommended)
+
+Grab the `.deb` from the [latest release](https://github.com/prathamps/WinClip/releases):
+
+```bash
+sudo apt install ./winclip_*_all.deb
+systemctl --user enable --now winclip.service
+```
+
+### pipx
+
+```bash
+sudo apt install python3-gi gir1.2-gtk-3.0 wl-clipboard pipx
+pipx install --system-site-packages winclip
+```
+
+### From source (Debian / Ubuntu)
 
 ```bash
 git clone https://github.com/prathamps/WinClip.git
@@ -57,11 +87,14 @@ history and settings).
 | Action | How |
 |---|---|
 | Open/close the panel | <kbd>Super</kbd>+<kbd>V</kbd> (or `winclip toggle`) |
+| Switch tabs (clips / emoji / kaomoji / symbols / commands) | Click, <kbd>Ctrl</kbd>+<kbd>Tab</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Tab</kbd>, <kbd>Ctrl</kbd>+<kbd>PgDn</kbd>/<kbd>PgUp</kbd>, or <kbd>Alt</kbd>+<kbd>1</kbd>–<kbd>5</kbd> |
 | Paste an item | Click it, or <kbd>↑</kbd>/<kbd>↓</kbd> + <kbd>Enter</kbd> |
-| Search | Just type in the search box |
-| Pin / unpin | Star button, or <kbd>Ctrl</kbd>+<kbd>P</kbd> |
+| Search the active tab | Just type in the search box |
+| Search → keyboard pick | <kbd>↓</kbd> moves into the list/grid; on emoji tabs <kbd>Enter</kbd> inserts the first match |
+| Pin / unpin | Pin button, or <kbd>Ctrl</kbd>+<kbd>P</kbd> |
 | Delete an item | ✕ button, or <kbd>Del</kbd> |
 | Clear history (keeps pinned) | *Clear all* button |
+| Move the panel | Drag any empty area |
 | Dismiss | <kbd>Esc</kbd> or click elsewhere |
 
 ### CLI
@@ -88,6 +121,7 @@ Stored at `~/.config/winclip/settings.json`:
 | `capture_images` | `true` | capture copied images |
 | `auto_paste` | `true` | inject Ctrl+V after selecting an item |
 | `paste_tool` | `auto` | `auto`, `none`, `ydotool`, `wtype`, or `xdotool` |
+| `show_commands` | `true` | shell-command tab; off = shell history is never read |
 
 ## How it works
 

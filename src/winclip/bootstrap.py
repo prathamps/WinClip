@@ -14,16 +14,19 @@ from pathlib import Path
 
 from winclip.adapters.driven.json_settings import JsonSettingsRepository
 from winclip.adapters.driven.paste_injector import CommandPasteInjector
+from winclip.adapters.driven.shell_history import ShellHistorySource
 from winclip.adapters.driven.sqlite_history import SqliteHistoryRepository
 from winclip.adapters.driven.system import SystemClock, UuidGenerator
 from winclip.application import (
     ActivateClip,
+    ActivateSnippet,
     CaptureClipboard,
     ManageHistory,
     ManageSettings,
+    QueryCommands,
     QueryHistory,
 )
-from winclip.domain import HistoryPolicy
+from winclip.domain import CommandHistoryPolicy, HistoryPolicy
 
 log = logging.getLogger(__name__)
 
@@ -50,6 +53,8 @@ class Container:
     query: QueryHistory
     manage: ManageHistory
     activate: ActivateClip
+    activate_snippet: ActivateSnippet
+    query_commands: QueryCommands
     settings: ManageSettings
     monitor: SupportsMonitor
     _closers: list = field(default_factory=list)
@@ -86,18 +91,29 @@ def build_core(with_monitor: bool = True) -> Container:
     ids = UuidGenerator()
     session = session_type()
 
+    writer = _clipboard_writer(session)
+    injector = CommandPasteInjector(
+        session_type=session,
+        preferred_tool=settings_repo.load().paste_tool,
+    )
+
     capture = CaptureClipboard(repo, settings_repo, policy, clock, ids)
     query = QueryHistory(repo, policy)
     manage = ManageHistory(repo, policy)
     activate = ActivateClip(
         repository=repo,
-        writer=_clipboard_writer(session),
-        injector=CommandPasteInjector(
-            session_type=session,
-            preferred_tool=settings_repo.load().paste_tool,
-        ),
+        writer=writer,
+        injector=injector,
         settings_repo=settings_repo,
         clock=clock,
+    )
+    activate_snippet = ActivateSnippet(
+        writer=writer, injector=injector, settings_repo=settings_repo
+    )
+    query_commands = QueryCommands(
+        source=ShellHistorySource(),
+        policy=CommandHistoryPolicy(),
+        settings_repo=settings_repo,
     )
     settings = ManageSettings(settings_repo)
 
@@ -110,6 +126,8 @@ def build_core(with_monitor: bool = True) -> Container:
         query=query,
         manage=manage,
         activate=activate,
+        activate_snippet=activate_snippet,
+        query_commands=query_commands,
         settings=settings,
         monitor=monitor,
         _closers=[repo.close],

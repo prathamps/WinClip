@@ -13,14 +13,18 @@ from dataclasses import dataclass
 from winclip.domain import (
     ClipItem,
     ClipNotFoundError,
+    CommandEntry,
+    CommandHistoryPolicy,
     ContentKind,
     HistoryPolicy,
     Settings,
+    ToolUsage,
 )
 
 from .ports.driven import (
     ClipboardWriter,
     Clock,
+    CommandHistorySource,
     HistoryRepository,
     IdGenerator,
     PasteInjector,
@@ -185,6 +189,61 @@ class ActivateClip:
         if self._settings_repo.load().auto_paste:
             pasted = self._injector.paste()
         return ActivationResult(copied=True, pasted=pasted)
+
+
+class ActivateSnippet:
+    """Put arbitrary text (an emoji, symbol, or command) on the
+    clipboard and paste it.
+
+    The clipboard monitor will observe the resulting clipboard change
+    and record it in the history like any other copy — no special
+    bookkeeping needed here.
+    """
+
+    def __init__(
+        self,
+        writer: ClipboardWriter,
+        injector: PasteInjector,
+        settings_repo: SettingsRepository,
+    ) -> None:
+        self._writer = writer
+        self._injector = injector
+        self._settings_repo = settings_repo
+
+    def activate_text(self, text: str) -> ActivationResult:
+        self._writer.write_text(text)
+        pasted = False
+        if self._settings_repo.load().auto_paste:
+            pasted = self._injector.paste()
+        return ActivationResult(copied=True, pasted=pasted)
+
+
+class QueryCommands:
+    """Browse shell history grouped by tool (docker, npm, kubectl, …).
+
+    Honours the ``show_commands`` privacy setting: when disabled, the
+    source is never consulted and everything reads as empty.
+    """
+
+    def __init__(
+        self,
+        source: CommandHistorySource,
+        policy: CommandHistoryPolicy,
+        settings_repo: SettingsRepository,
+    ) -> None:
+        self._source = source
+        self._policy = policy
+        self._settings_repo = settings_repo
+
+    def tools(self) -> list[ToolUsage]:
+        if not self._settings_repo.load().show_commands:
+            return []
+        return self._policy.tools(self._source.recent_commands())
+
+    def commands(self, tool: str | None, query: str = "") -> list[CommandEntry]:
+        if not self._settings_repo.load().show_commands:
+            return []
+        return self._policy.commands_for(self._source.recent_commands(), tool, query)
 
 
 class ManageSettings:

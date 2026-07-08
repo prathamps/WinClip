@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from winclip.domain import ClipItem, Settings
+from winclip.domain import ClipItem, CommandEntry, Settings, ToolUsage
 
 
 class CapturesClipboard(Protocol):
@@ -50,6 +50,20 @@ class ActivatesClip(Protocol):
 class ActivationResult(Protocol):
     copied: bool
     pasted: bool
+
+
+class ActivatesText(Protocol):
+    """Driven by snippet pages (emoji, kaomoji, symbols, commands)."""
+
+    def activate_text(self, text: str) -> ActivationResult: ...
+
+
+class QueriesCommands(Protocol):
+    """Driven by the shell-command history page."""
+
+    def tools(self) -> list[ToolUsage]: ...
+
+    def commands(self, tool: str | None, query: str = "") -> list[CommandEntry]: ...
 
 
 class ManagesSettings(Protocol):
