@@ -18,6 +18,15 @@ warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*"; }
 
 [ -x "$PYTHON" ] || { warn "$PYTHON not found — install the python3 package first"; exit 1; }
 
+# WinClip needs Python 3.10+. Fail here with a clear message: old pips
+# (Ubuntu 20.04's pip 20) only *warn* about a Requires-Python mismatch
+# and then produce a broken install.
+if ! "$PYTHON" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)'; then
+    warn "WinClip needs Python 3.10 or newer; $PYTHON is $("$PYTHON" -V 2>&1 | cut -d' ' -f2)."
+    warn "Supported distributions: Debian 12+, Ubuntu 22.04+, Pop!_OS 22.04+."
+    exit 1
+fi
+
 # --- 1. system dependencies -------------------------------------------------
 say "Checking system dependencies"
 APT_PKGS=()
@@ -45,7 +54,8 @@ fi
 # and pipx defaulting to a non-system interpreter.
 say "Installing winclip into $VENV"
 "$PYTHON" -m venv --clear --system-site-packages "$VENV"
-"$VENV/bin/pip" install --quiet "$REPO_DIR"
+# Not --quiet: pip's output is the only diagnostic when a build fails.
+"$VENV/bin/pip" install "$REPO_DIR"
 mkdir -p "$BIN_DIR"
 ln -sf "$VENV/bin/winclip" "$BIN_DIR/winclip"
 "$BIN_DIR/winclip" version >/dev/null || { warn "winclip failed to run after install"; exit 1; }
