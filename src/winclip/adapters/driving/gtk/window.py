@@ -192,7 +192,17 @@ class HistoryWindow(Gtk.ApplicationWindow):
         self._activate_snippet = activate_snippet
         self._query_commands = query_commands
 
+        # Fixed size, like the Win+V flyout: movable but never resizable.
+        # This serves three purposes: the undecorated window's invisible
+        # edges stop acting as resize handles (easy to grab accidentally
+        # while moving the panel), tiling compositors (COSMIC auto-tile,
+        # sway) float non-resizable windows instead of stretching them
+        # into a tile, and the flyout keeps its Windows proportions.
+        # (Gdk.Geometry min==max hints would be the classic way, but they
+        # produce wrong sizes with GTK3 CSD on Wayland — set_resizable is
+        # the reliable mechanism.)
         self.set_default_size(360, 480)
+        self.set_resizable(False)
         self.set_type_hint(Gdk.WindowTypeHint.DIALOG)
         self.set_skip_taskbar_hint(True)
         self.set_position(Gtk.WindowPosition.CENTER)
@@ -287,9 +297,15 @@ class HistoryWindow(Gtk.ApplicationWindow):
         clips_scroller.add(self._list)
 
         # Pages 2-4: snippet catalogs. Page 5: shell commands.
-        self._emoji_page = SnippetPage(EMOJI, self._on_snippet, "emoji-btn")
-        self._kaomoji_page = SnippetPage(KAOMOJI, self._on_snippet, "kaomoji-btn")
-        self._symbols_page = SnippetPage(SYMBOLS, self._on_snippet, "symbol-btn")
+        self._emoji_page = SnippetPage(
+            EMOJI, self._on_snippet, "emoji-btn", max_per_line=8
+        )
+        self._kaomoji_page = SnippetPage(
+            KAOMOJI, self._on_snippet, "kaomoji-btn", max_per_line=2
+        )
+        self._symbols_page = SnippetPage(
+            SYMBOLS, self._on_snippet, "symbol-btn", max_per_line=7
+        )
         self._commands_page = CommandsPage(self._query_commands, self._on_snippet)
 
         for name, title, page in (

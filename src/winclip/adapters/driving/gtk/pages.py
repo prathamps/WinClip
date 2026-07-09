@@ -27,6 +27,7 @@ class SnippetPage(Gtk.ScrolledWindow):
         catalog: Catalog,
         on_activate: Callable[[str], None],
         button_css: str,
+        max_per_line: int = 8,
     ) -> None:
         super().__init__()
         self.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
@@ -43,9 +44,12 @@ class SnippetPage(Gtk.ScrolledWindow):
             title.get_style_context().add_class("category-title")
             column.pack_start(title, False, False, 0)
 
+            # The cap bounds the FlowBox's *natural* width; the window is
+            # non-resizable and snaps to natural size, so an uncapped grid
+            # would stretch the whole panel.
             grid = Gtk.FlowBox()
             grid.set_selection_mode(Gtk.SelectionMode.NONE)
-            grid.set_max_children_per_line(30)
+            grid.set_max_children_per_line(max_per_line)
             grid.set_homogeneous(False)
             widgets = []
             for text, name in entries:
@@ -207,6 +211,7 @@ class CommandsPage(Gtk.Box):
             label.set_halign(Gtk.Align.START)
             label.set_ellipsize(Pango.EllipsizeMode.END)
             label.set_xalign(0.0)
+            label.set_max_width_chars(40)
             label.get_style_context().add_class("command-text")
             card.pack_start(label, True, True, 0)
             row.add(card)
