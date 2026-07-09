@@ -12,13 +12,13 @@ from datetime import datetime, timezone
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import GdkPixbuf, GLib, Gtk  # noqa: E402
+from gi.repository import GdkPixbuf, GLib, Gtk, Pango  # noqa: E402
 
 from winclip.domain import ClipItem, ContentKind  # noqa: E402
 
 from .humanize import relative_time  # noqa: E402
 
-_THUMB_MAX_W = 280
+_THUMB_MAX_W = 220
 _THUMB_MAX_H = 110
 _TEXT_PREVIEW_CHARS = 240
 
@@ -66,9 +66,16 @@ class ClipRow(Gtk.ListBoxRow):
         label.set_halign(Gtk.Align.START)
         label.set_valign(Gtk.Align.START)
         label.set_line_wrap(True)
+        # WORD_CHAR allows breaking inside words: a wrapped label's
+        # minimum width is otherwise its longest unbreakable token, so a
+        # copied URL or base64 blob would stretch the whole
+        # non-resizable panel.
+        label.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
         label.set_lines(3)
-        label.set_ellipsize(3)  # Pango.EllipsizeMode.END
+        label.set_ellipsize(Pango.EllipsizeMode.END)
         label.set_xalign(0.0)
+        label.set_width_chars(10)
+        label.set_max_width_chars(34)
         label.get_style_context().add_class("clip-text")
         return label
 
