@@ -10,6 +10,9 @@ rm -f "$HOME/.config/systemd/user/winclip.service"
 systemctl --user daemon-reload
 
 say "Removing package"
+rm -rf "$HOME/.local/share/winclip/venv"
+rm -f "$HOME/.local/bin/winclip"
+# Installs made by older versions of the install script:
 if command -v pipx >/dev/null && pipx list 2>/dev/null | grep -q winclip; then
     pipx uninstall winclip
 else
