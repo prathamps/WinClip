@@ -192,17 +192,14 @@ class HistoryWindow(Gtk.ApplicationWindow):
         self._activate_snippet = activate_snippet
         self._query_commands = query_commands
 
-        # Fixed size, like the Win+V flyout: movable but never resizable.
-        # This serves three purposes: the undecorated window's invisible
-        # edges stop acting as resize handles (easy to grab accidentally
-        # while moving the panel), tiling compositors (COSMIC auto-tile,
-        # sway) float non-resizable windows instead of stretching them
-        # into a tile, and the flyout keeps its Windows proportions.
-        # (Gdk.Geometry min==max hints would be the classic way, but they
-        # produce wrong sizes with GTK3 CSD on Wayland — set_resizable is
-        # the reliable mechanism.)
-        self.set_default_size(360, 480)
-        self.set_resizable(False)
+        # Resizable, with the chosen size persisted in settings: the
+        # panel opens at the size the user last dragged it to (Windows
+        # proportions, 360x480, by default). Content can never stretch
+        # the panel on its own — labels break long tokens and the
+        # snippet grids cap their per-line counts.
+        current = settings.get_settings()
+        self._panel_size = (current.panel_width, current.panel_height)
+        self.set_default_size(*self._panel_size)
         self.set_type_hint(Gdk.WindowTypeHint.DIALOG)
         self.set_skip_taskbar_hint(True)
         self.set_position(Gtk.WindowPosition.CENTER)
@@ -349,6 +346,9 @@ class HistoryWindow(Gtk.ApplicationWindow):
         self.connect("key-press-event", self._on_key_press)
         self.connect("focus-out-event", self._on_focus_out)
         self.connect("delete-event", self._on_delete_event)
+        # Persist a user-chosen size when the panel is dismissed rather
+        # than on every configure event during the drag.
+        self.connect("hide", self._persist_size)
         # With no titlebar, let the user drag the panel by any spot that
         # isn't an interactive widget (header, edges, gaps): clicks on
         # buttons/entries/rows are consumed before they reach the window.
@@ -592,3 +592,23 @@ class HistoryWindow(Gtk.ApplicationWindow):
     def _on_delete_event(self, _widget, _event) -> bool:
         self.hide()
         return True  # keep the daemon alive
+
+    def _persist_size(self, _widget) -> None:
+        import dataclasses
+
+        # get_size() here, at hide time, is the logical size (excluding
+        # CSD shadows); configure-event dimensions include the shadow
+        # margin and lag one event behind.
+        size = self.get_size()
+        width, height = size.width, size.height
+        current = self._settings.get_settings()
+        if (width, height) == (current.panel_width, current.panel_height):
+            return
+        try:
+            self._settings.update_settings(
+                dataclasses.replace(
+                    current, panel_width=width, panel_height=height
+                )
+            )
+        except ValueError:
+            log.debug("not persisting implausible panel size %sx%s", width, height)

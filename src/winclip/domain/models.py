@@ -122,6 +122,9 @@ class Settings:
     # Show the shell-command history tab. Off = WinClip never reads
     # shell history files at all.
     show_commands: bool = True
+    # Panel size; updated automatically when the user resizes the panel.
+    panel_width: int = 360
+    panel_height: int = 480
 
     def __post_init__(self) -> None:
         if self.max_items < 1:
@@ -130,3 +133,5 @@ class Settings:
             raise ValueError("max_item_bytes must be at least 1")
         if self.paste_tool not in ("auto", "none", "ydotool", "wtype", "xdotool"):
             raise ValueError(f"unknown paste_tool: {self.paste_tool!r}")
+        if self.panel_width < 250 or self.panel_height < 250:
+            raise ValueError("panel size must be at least 250x250")

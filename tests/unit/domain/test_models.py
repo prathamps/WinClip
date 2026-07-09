@@ -76,3 +76,10 @@ class TestSettings:
     def test_rejects_unknown_paste_tool(self):
         with pytest.raises(ValueError):
             Settings(paste_tool="telepathy")
+
+    def test_rejects_implausible_panel_sizes(self):
+        with pytest.raises(ValueError):
+            Settings(panel_width=100)
+        with pytest.raises(ValueError):
+            Settings(panel_height=0)
+        assert Settings(panel_width=500, panel_height=700).panel_width == 500

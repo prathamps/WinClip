@@ -95,6 +95,7 @@ history and settings).
 | Delete an item | ✕ button, or <kbd>Del</kbd> |
 | Clear history (keeps pinned) | *Clear all* button |
 | Move the panel | Drag any empty area |
+| Resize the panel | Drag an edge — the size is remembered |
 | Dismiss | <kbd>Esc</kbd> or click elsewhere |
 
 ### CLI
