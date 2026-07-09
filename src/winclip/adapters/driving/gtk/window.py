@@ -207,6 +207,7 @@ class HistoryWindow(Gtk.ApplicationWindow):
         self.get_style_context().add_class("winclip-panel")
         self._shown_at: int = 0
         self._dialog_open = False
+        self._press_at: tuple[float, float] | None = None
 
         # An empty client-side titlebar removes the compositor's
         # server-side decorations (set_decorated(False) alone still gets
@@ -349,20 +350,43 @@ class HistoryWindow(Gtk.ApplicationWindow):
         # Persist a user-chosen size when the panel is dismissed rather
         # than on every configure event during the drag.
         self.connect("hide", self._persist_size)
-        # With no titlebar, let the user drag the panel by any spot that
-        # isn't an interactive widget (header, edges, gaps): clicks on
-        # buttons/entries/rows are consumed before they reach the window.
-        self.connect("button-press-event", self._on_drag_press)
+        # With no titlebar, the user drags the panel by any spot that
+        # isn't an interactive widget. This MUST use a drag threshold:
+        # starting the compositor move grab directly on button-press
+        # consumes the press/release pair, and ListBox rows activate on
+        # *release* — the grab ate it, making cards unclickable.
+        self.add_events(
+            Gdk.EventMask.BUTTON_PRESS_MASK
+            | Gdk.EventMask.BUTTON_RELEASE_MASK
+            | Gdk.EventMask.BUTTON1_MOTION_MASK
+        )
+        self.connect("button-press-event", self._on_press)
+        self.connect("motion-notify-event", self._on_motion)
+        self.connect("button-release-event", self._on_release)
 
-    def _on_drag_press(self, _widget, event) -> bool:
+    _DRAG_THRESHOLD_PX = 10
+
+    def _on_press(self, _widget, event) -> bool:
         if event.button == 1:
-            # Restart the focus-out grace period: some compositors emit a
-            # focus-out for the move grab, which must not dismiss the panel.
-            self._shown_at = GLib.get_monotonic_time()
-            self.begin_move_drag(
-                event.button, int(event.x_root), int(event.y_root), event.time
-            )
-            return True
+            self._press_at = (event.x_root, event.y_root)
+        return False  # never consume: clicks must reach rows and buttons
+
+    def _on_motion(self, _widget, event) -> bool:
+        if self._press_at is None:
+            return False
+        x0, y0 = self._press_at
+        moved = max(abs(event.x_root - x0), abs(event.y_root - y0))
+        if moved < self._DRAG_THRESHOLD_PX:
+            return False
+        self._press_at = None
+        # Restart the focus-out grace period: some compositors emit a
+        # focus-out for the move grab, which must not dismiss the panel.
+        self._shown_at = GLib.get_monotonic_time()
+        self.begin_move_drag(1, int(event.x_root), int(event.y_root), event.time)
+        return True
+
+    def _on_release(self, _widget, _event) -> bool:
+        self._press_at = None
         return False
 
     # -- behaviour -----------------------------------------------------
