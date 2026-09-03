@@ -32,6 +32,10 @@ class InMemoryHistoryRepository:
     def list_all(self) -> list[ClipItem]:
         return list(self.items.values())
 
+    def image_of(self, clip_id: str) -> bytes | None:
+        item = self.items.get(clip_id)
+        return item.image if item is not None else None
+
     def update(self, item: ClipItem) -> None:
         assert item.id in self.items, "update of unknown item"
         self.items[item.id] = item

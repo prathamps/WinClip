@@ -36,6 +36,7 @@ class ClipItem:
     pinned: bool = False
     text: str | None = None
     image: bytes | None = field(default=None, repr=False)
+    image_size: int = 0
 
     @staticmethod
     def hash_text(text: str) -> str:
@@ -71,13 +72,16 @@ class ClipItem:
             last_used_at=now,
             pinned=pinned,
             image=data,
+            image_size=len(data),
         )
 
     @property
     def size_bytes(self) -> int:
         if self.kind is ContentKind.TEXT:
             return len((self.text or "").encode("utf-8"))
-        return len(self.image or b"")
+        if self.image is None:
+            return self.image_size
+        return len(self.image)
 
     def preview(self, max_chars: int = 200) -> str:
         """A short, single-paragraph description suitable for lists."""

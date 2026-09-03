@@ -114,6 +114,9 @@ class QueryHistory:
     def search(self, query: str) -> list[ClipItem]:
         return [i for i in self.list_items() if i.matches(query)]
 
+    def image_of(self, clip_id: str) -> bytes | None:
+        return self._repo.image_of(clip_id)
+
 
 class ManageHistory:
     """Pin, unpin, delete, and clear."""

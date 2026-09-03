@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import datetime, timezone
 
 import pytest
@@ -36,6 +37,17 @@ class TestClipItem:
     def test_size_bytes_counts_utf8_text(self):
         item = ClipItem.from_text("a", "héllo", NOW)
         assert item.size_bytes == len("héllo".encode())
+
+    def test_image_item_records_its_byte_size(self):
+        item = ClipItem.from_image("a", b"\x89PNG" * 3, NOW)
+        assert item.image_size == 12
+        assert item.size_bytes == 12
+
+    def test_size_bytes_survives_dropping_the_image_bytes(self):
+        item = ClipItem.from_image("a", b"\x89PNG" * 3, NOW)
+        metadata_only = replace(item, image=None)
+        assert metadata_only.size_bytes == 12
+        assert metadata_only.preview() == "[Image, 1 KiB]"
 
     def test_preview_collapses_whitespace_and_truncates(self):
         item = ClipItem.from_text("a", "  line one\n\n  line two  ", NOW)

@@ -37,6 +37,15 @@ class TestQuery:
         capture.capture_text("b")
         assert len(query.search("")) == 2
 
+    def test_image_of_returns_the_stored_bytes(self, capture, query):
+        item = capture.capture_image(b"\x89PNG-bytes")
+        assert query.image_of(item.id) == b"\x89PNG-bytes"
+
+    def test_image_of_is_none_for_text_and_unknown_items(self, capture, query):
+        item = capture.capture_text("just text")
+        assert query.image_of(item.id) is None
+        assert query.image_of("ghost") is None
+
 
 class TestManage:
     def test_toggle_pin_flips_state(self, capture, manage, repo):

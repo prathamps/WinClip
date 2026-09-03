@@ -4,6 +4,10 @@ A single-file database keeps the history (including image blobs)
 self-contained under ``~/.local/share/winclip``. The connection is
 shared between the GTK main loop and the clipboard-monitor thread, so
 every access is serialised with a lock.
+
+Listing never reads image blobs: the panel only needs metadata and
+the byte count, and fetches a single image on demand via
+:meth:`image_of`.
 """
 
 from __future__ import annotations
@@ -29,6 +33,15 @@ CREATE TABLE IF NOT EXISTS clips (
 CREATE INDEX IF NOT EXISTS idx_clips_hash ON clips(content_hash);
 CREATE INDEX IF NOT EXISTS idx_clips_last_used ON clips(last_used_at);
 """
+
+_ITEM_COLUMNS = (
+    "id, kind, text_content, content_hash, pinned, created_at, last_used_at,"
+    " COALESCE(length(image_content), 0)"
+)
+_SELECT_METADATA = f"SELECT {_ITEM_COLUMNS}, NULL FROM clips"
+_SELECT_FULL = f"SELECT {_ITEM_COLUMNS}, image_content FROM clips"
+
+_VACUUM_FREE_PAGE_RATIO = 0.25
 
 
 class SqliteHistoryRepository:
@@ -61,22 +74,29 @@ class SqliteHistoryRepository:
     def get(self, clip_id: str) -> ClipItem | None:
         with self._lock:
             row = self._conn.execute(
-                "SELECT * FROM clips WHERE id = ?", (clip_id,)
+                f"{_SELECT_FULL} WHERE id = ?", (clip_id,)
             ).fetchone()
         return self._to_item(row) if row else None
 
     def find_by_hash(self, content_hash: str) -> ClipItem | None:
         with self._lock:
             row = self._conn.execute(
-                "SELECT * FROM clips WHERE content_hash = ? LIMIT 1",
+                f"{_SELECT_METADATA} WHERE content_hash = ? LIMIT 1",
                 (content_hash,),
             ).fetchone()
         return self._to_item(row) if row else None
 
     def list_all(self) -> list[ClipItem]:
         with self._lock:
-            rows = self._conn.execute("SELECT * FROM clips").fetchall()
+            rows = self._conn.execute(_SELECT_METADATA).fetchall()
         return [self._to_item(row) for row in rows]
+
+    def image_of(self, clip_id: str) -> bytes | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT image_content FROM clips WHERE id = ?", (clip_id,)
+            ).fetchone()
+        return row[0] if row else None
 
     def update(self, item: ClipItem) -> None:
         with self._lock, self._conn:
@@ -98,8 +118,28 @@ class SqliteHistoryRepository:
                 f"DELETE FROM clips WHERE id IN ({placeholders})", clip_ids
             )
 
+    def maintain(self) -> None:
+        """One-off startup housekeeping: durable-enough sync, a trimmed
+        WAL, and compaction when deleted blobs have bloated the file."""
+        with self._lock:
+            self._conn.execute("PRAGMA synchronous=NORMAL")
+            self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            if self._free_page_ratio() > _VACUUM_FREE_PAGE_RATIO:
+                self._conn.execute("VACUUM")
+                self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
+    def _free_page_ratio(self) -> float:
+        page_count = self._conn.execute("PRAGMA page_count").fetchone()[0]
+        freelist = self._conn.execute("PRAGMA freelist_count").fetchone()[0]
+        return freelist / page_count if page_count else 0.0
+
+    def page_count(self) -> int:
+        with self._lock:
+            return self._conn.execute("PRAGMA page_count").fetchone()[0]
+
     def close(self) -> None:
         with self._lock:
+            self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             self._conn.close()
 
     @staticmethod
@@ -108,17 +148,19 @@ class SqliteHistoryRepository:
             clip_id,
             kind,
             text,
-            image,
             content_hash,
             pinned,
             created_at,
             last_used_at,
+            image_size,
+            image,
         ) = row
         return ClipItem(
             id=clip_id,
             kind=ContentKind(kind),
             text=text,
             image=image,
+            image_size=image_size,
             content_hash=content_hash,
             pinned=bool(pinned),
             created_at=datetime.fromisoformat(created_at),

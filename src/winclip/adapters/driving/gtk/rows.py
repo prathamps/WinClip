@@ -3,6 +3,9 @@
 Each entry is a rounded card; the pin and delete buttons sit in the
 top-right corner and appear on hover/selection (always visible for
 pinned items, like Windows).
+
+Image cards start with a placeholder; the window fills in the decoded
+thumbnail asynchronously via :meth:`ClipRow.set_thumbnail`.
 """
 
 from __future__ import annotations
@@ -12,15 +15,16 @@ from datetime import datetime, timezone
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import GdkPixbuf, GLib, Gtk, Pango  # noqa: E402
+from gi.repository import GdkPixbuf, Gtk, Pango  # noqa: E402
 
 from winclip.domain import ClipItem, ContentKind  # noqa: E402
 
 from .humanize import relative_time  # noqa: E402
 
-_THUMB_MAX_W = 220
-_THUMB_MAX_H = 110
+THUMB_MAX_W = 220
+THUMB_MAX_H = 110
 _TEXT_PREVIEW_CHARS = 240
+_PLACEHOLDER_HEIGHT = 48
 
 
 def _icon(*names: str) -> str:
@@ -40,6 +44,7 @@ class ClipRow(Gtk.ListBoxRow):
         self.item = item
         self._on_pin = on_pin
         self._on_delete = on_delete
+        self._thumbnail: Gtk.Image | None = None
         self.get_style_context().add_class("clip-card-row")
 
         card = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -55,13 +60,31 @@ class ClipRow(Gtk.ListBoxRow):
         self.add(card)
         self.show_all()
 
+    @property
+    def needs_thumbnail(self) -> bool:
+        return self._thumbnail is not None and self._thumbnail.get_pixbuf() is None
+
+    def set_thumbnail(self, pixbuf: GdkPixbuf.Pixbuf) -> None:
+        if self._thumbnail is None:
+            return
+        self._thumbnail.set_size_request(-1, -1)
+        self._thumbnail.set_from_pixbuf(pixbuf)
+
     def _build_preview(self) -> Gtk.Widget:
-        if self.item.kind is ContentKind.IMAGE and self.item.image:
-            pixbuf = self._thumbnail(self.item.image)
-            if pixbuf is not None:
-                image = Gtk.Image.new_from_pixbuf(pixbuf)
-                image.set_halign(Gtk.Align.START)
-                return image
+        if self.item.kind is ContentKind.IMAGE:
+            return self._build_thumbnail_placeholder()
+        return self._build_text_preview()
+
+    def _build_thumbnail_placeholder(self) -> Gtk.Image:
+        image = Gtk.Image.new_from_icon_name(
+            _icon("image-x-generic-symbolic", "image-x-generic"), Gtk.IconSize.DIALOG
+        )
+        image.set_halign(Gtk.Align.START)
+        image.set_size_request(-1, _PLACEHOLDER_HEIGHT)
+        self._thumbnail = image
+        return image
+
+    def _build_text_preview(self) -> Gtk.Label:
         label = Gtk.Label(label=self.item.preview(_TEXT_PREVIEW_CHARS))
         label.set_halign(Gtk.Align.START)
         label.set_valign(Gtk.Align.START)
@@ -122,27 +145,3 @@ class ClipRow(Gtk.ListBoxRow):
         box.pack_start(pin_btn, False, False, 0)
         box.pack_start(del_btn, False, False, 0)
         return box
-
-    @staticmethod
-    def _thumbnail(png_data: bytes) -> GdkPixbuf.Pixbuf | None:
-        try:
-            loader = GdkPixbuf.PixbufLoader.new_with_type("png")
-            loader.write(png_data)
-            loader.close()
-            pixbuf = loader.get_pixbuf()
-        except GLib.Error:
-            return None
-        if pixbuf is None:
-            return None
-        scale = min(
-            _THUMB_MAX_W / pixbuf.get_width(),
-            _THUMB_MAX_H / pixbuf.get_height(),
-            1.0,
-        )
-        if scale < 1.0:
-            pixbuf = pixbuf.scale_simple(
-                int(pixbuf.get_width() * scale),
-                int(pixbuf.get_height() * scale),
-                GdkPixbuf.InterpType.BILINEAR,
-            )
-        return pixbuf

@@ -58,6 +58,11 @@ class Container:
     settings: ManageSettings
     monitor: SupportsMonitor
     _closers: list = field(default_factory=list)
+    _maintainers: list = field(default_factory=list)
+
+    def maintain(self) -> None:
+        for maintain in self._maintainers:
+            maintain()
 
     def shutdown(self) -> None:
         self.monitor.stop()
@@ -131,6 +136,7 @@ def build_core(with_monitor: bool = True) -> Container:
         settings=settings,
         monitor=monitor,
         _closers=[repo.close],
+        _maintainers=[repo.maintain],
     )
 
 
