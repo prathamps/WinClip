@@ -30,6 +30,7 @@ from winclip.application import (  # noqa: E402
 from winclip.catalog import EMOJI, KAOMOJI, SYMBOLS  # noqa: E402
 
 from .layer_shell import attach_layer_shell  # noqa: E402
+from .omarchy_theme import omarchy_theme_css  # noqa: E402
 from .pages import CommandsPage, SnippetPage  # noqa: E402
 from .preferences import PreferencesDialog  # noqa: E402
 from .rows import THUMB_MAX_H, THUMB_MAX_W, ClipRow  # noqa: E402
@@ -253,6 +254,23 @@ class HistoryWindow(Gtk.ApplicationWindow):
             provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         )
+        # The desktop theme (Omarchy) overrides both GTK's theme and the
+        # panel CSS above; its content is refreshed each time the panel
+        # opens so a theme switch shows up on the next Super+V.
+        self._desktop_theme_provider = Gtk.CssProvider()
+        self._desktop_theme_css = ""
+        Gtk.StyleContext.add_provider_for_screen(
+            Gdk.Screen.get_default(),
+            self._desktop_theme_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_USER,
+        )
+
+    def _apply_desktop_theme(self) -> None:
+        css = omarchy_theme_css()
+        if css == self._desktop_theme_css:
+            return
+        self._desktop_theme_provider.load_from_data(css.encode("utf-8"))
+        self._desktop_theme_css = css
 
     def _build_ui(self) -> None:
         panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -418,6 +436,7 @@ class HistoryWindow(Gtk.ApplicationWindow):
             self.present_panel()
 
     def present_panel(self) -> None:
+        self._apply_desktop_theme()
         self._search.set_text("")
         self.refresh()
         commands_tab = self._stack.get_child_by_name("commands")

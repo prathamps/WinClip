@@ -37,6 +37,10 @@ came from.
   with a 4 MiB per-item limit; oldest unpinned items are evicted first.
 - **Persistent** — history lives in SQLite under `~/.local/share/winclip`
   and survives reboots.
+- **Omarchy themes** — on [Omarchy](https://omarchy.org) the panel takes
+  its colours, font, and corner rounding from the active theme, exactly
+  like Omarchy's built-in menus, and follows `omarchy theme set` the next
+  time it opens.
 - **Configurable** — history size, image capture, auto-paste, and the paste
   tool, via the in-panel preferences dialog or `winclip config`.
 - **No pip dependencies** — pure Python standard library plus the
@@ -156,6 +160,13 @@ Stored at `~/.config/winclip/settings.json`:
   always on GNOME, which offers no layer-shell to apps) the panel is a
   regular toplevel; on Hyprland the installer also writes float/center
   window rules so that fallback, and the Preferences dialog, never tile.
+- **Omarchy theming**: when
+  `~/.local/state/omarchy/current/theme/colors.toml` exists, its
+  background, foreground, accent, and muted colours are mapped onto GTK's
+  named colours for the panel, the font becomes fontconfig's `monospace`
+  (the font `omarchy font set` picks), and the corner radius follows
+  Hyprland's `decoration:rounding`. The file is re-read every time the
+  panel opens, so no hook is needed.
 - Paste injection probes `ydotool` → `wtype` on Wayland and `xdotool` on
   X11. On GNOME Wayland, `ydotool` (with its daemon enabled) is the reliable
   choice; on Hyprland and other wlroots-style compositors `wtype` works out
