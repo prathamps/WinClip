@@ -30,8 +30,6 @@ if ! "$PYTHON" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10)
 fi
 
 # --- 1. system dependencies -------------------------------------------------
-# Package names differ per distro; the checks that decide whether a
-# package is needed do not.
 if command -v apt-get >/dev/null; then
     PKG_MANAGER=apt
     PKG_GI=python3-gi PKG_GTK=gir1.2-gtk-3.0 PKG_VENV=python3-venv
@@ -62,8 +60,6 @@ PKGS=()
 command -v wl-copy >/dev/null || PKGS+=(wl-clipboard)
 
 if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
-    # Layer-shell keeps the panel out of tiling layouts (Hyprland, sway,
-    # river, niri); GNOME ignores it harmlessly.
     "$PYTHON" -c "import gi; gi.require_version('GtkLayerShell','0.1')" 2>/dev/null \
         || PKGS+=("$PKG_LAYER_SHELL")
     # Optional but recommended: paste injection.
@@ -173,16 +169,6 @@ bind_gnome() {
     say "Super+V is now WinClip"
 }
 
-# Hyprland: WinClip's binding and window rules live in their own file
-# under ~/.config/hypr, pulled in by one line appended to the main
-# config. Hyprland 0.55+ (and Omarchy) is configured in Lua; older
-# releases read hyprland.conf. Super+V is unbound first because both
-# Hyprland's example config (toggle floating) and Omarchy (universal
-# paste) already use it.
-#
-# The panel itself is a layer-shell surface, so it never tiles; the
-# window rules cover the Preferences dialog and the toplevel fallback
-# used when gtk-layer-shell is missing.
 bind_hyprland() {
     local HYPR_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/hypr"
     local COMMAND="$BIN_DIR/winclip toggle"

@@ -209,12 +209,8 @@ class HistoryWindow(Gtk.ApplicationWindow):
         self.set_skip_taskbar_hint(True)
         self.set_position(Gtk.WindowPosition.CENTER)
         self.set_keep_above(True)
-        # On tiling compositors a layer surface keeps the panel out of
-        # the tiling layout; elsewhere it stays a centered toplevel.
         self._is_layer_surface = attach_layer_shell(self)
         if self._is_layer_surface:
-            # A layer surface takes its size from the size request, not
-            # from the default size, and cannot be resized by dragging.
             self.set_size_request(*self._panel_size)
         self.get_style_context().add_class("winclip-panel")
         self._shown_at: int = 0
@@ -254,9 +250,9 @@ class HistoryWindow(Gtk.ApplicationWindow):
             provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         )
-        # The desktop theme (Omarchy) overrides both GTK's theme and the
-        # panel CSS above; its content is refreshed each time the panel
-        # opens so a theme switch shows up on the next Super+V.
+        self._install_desktop_theme_provider()
+
+    def _install_desktop_theme_provider(self) -> None:
         self._desktop_theme_provider = Gtk.CssProvider()
         self._desktop_theme_css = ""
         Gtk.StyleContext.add_provider_for_screen(
@@ -382,8 +378,6 @@ class HistoryWindow(Gtk.ApplicationWindow):
         # Persist a user-chosen size when the panel is dismissed rather
         # than on every configure event during the drag.
         self.connect("hide", self._persist_size)
-        # A layer surface is positioned by the compositor and has no
-        # move grab, so dragging only applies to the toplevel panel.
         if not self._is_layer_surface:
             self._connect_drag_to_move()
 

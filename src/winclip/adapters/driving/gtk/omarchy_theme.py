@@ -36,10 +36,7 @@ def colors_file() -> Path:
 
 
 def parse_colors(text: str) -> dict[str, str]:
-    """The ``key = "value"`` pairs of a flat colors.toml.
-
-    Python 3.10 has no tomllib, and the file is flat, so a line parser
-    is enough; anything else (comments, numbers, tables) is skipped."""
+    """The ``key = "value"`` pairs of a flat colors.toml (Python 3.10 has no tomllib)."""
     matches = (_KEY_VALUE.match(line) for line in text.splitlines())
     return {match.group(1): match.group(2) for match in matches if match}
 
