@@ -30,6 +30,8 @@ class QueriesHistory(Protocol):
 
     def search(self, query: str) -> list[ClipItem]: ...
 
+    def image_of(self, clip_id: str) -> bytes | None: ...
+
 
 class ManagesHistory(Protocol):
     """Driven by UI actions: pin, delete, clear."""

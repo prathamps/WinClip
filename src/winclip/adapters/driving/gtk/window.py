@@ -31,9 +31,12 @@ from winclip.catalog import EMOJI, KAOMOJI, SYMBOLS  # noqa: E402
 
 from .pages import CommandsPage, SnippetPage  # noqa: E402
 from .preferences import PreferencesDialog  # noqa: E402
-from .rows import ClipRow  # noqa: E402
+from .rows import THUMB_MAX_H, THUMB_MAX_W, ClipRow  # noqa: E402
+from .thumbnails import ThumbnailCache, decode_thumbnail  # noqa: E402
 
 log = logging.getLogger(__name__)
+
+_THUMBNAILS_PER_IDLE_TICK = 2
 
 _CSS = b"""
 /* Let the rounded panel show through the window corners. */
@@ -208,6 +211,9 @@ class HistoryWindow(Gtk.ApplicationWindow):
         self._shown_at: int = 0
         self._dialog_open = False
         self._press_at: tuple[float, float] | None = None
+        self._thumbnails: ThumbnailCache = ThumbnailCache()
+        self._built_signature: tuple | None = None
+        self._thumbnail_generation = 0
 
         # An empty client-side titlebar removes the compositor's
         # server-side decorations (set_decorated(False) alone still gets
@@ -287,6 +293,7 @@ class HistoryWindow(Gtk.ApplicationWindow):
         self._list.set_selection_mode(Gtk.SelectionMode.SINGLE)
         self._list.get_style_context().add_class("clip-list")
         self._list.connect("row-activated", self._on_row_activated)
+        self._list.set_filter_func(self._row_matches_search)
         self._list.set_placeholder(self._build_empty_state())
 
         clips_scroller = Gtk.ScrolledWindow()
@@ -324,7 +331,6 @@ class HistoryWindow(Gtk.ApplicationWindow):
         # Pages that call show_all() during construction would otherwise
         # win the "first visible child" race; be explicit.
         self._stack.set_visible_child_name("clips")
-        self._apply_search()
 
     def _build_empty_state(self) -> Gtk.Widget:
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
@@ -410,22 +416,71 @@ class HistoryWindow(Gtk.ApplicationWindow):
         self._search.grab_focus()
 
     def refresh(self) -> None:
+        """Bring the clip list in line with the history, then re-filter.
+
+        Rows are rebuilt only when the history actually changed; a
+        search keystroke or a re-open with unchanged history costs a
+        filter pass, not a rebuild."""
+        items = self._query.list_items()
+        signature = _signature_of(items)
+        if signature != self._built_signature:
+            self._rebuild_rows(items)
+            self._built_signature = signature
+        self._apply_filter()
+        self._schedule_thumbnails()
+
+    def _rebuild_rows(self, items) -> None:
         for child in self._list.get_children():
             self._list.remove(child)
-        query = self._search.get_text().strip()
-        items = self._query.search(query) if query else self._query.list_items()
         for item in items:
             self._list.add(ClipRow(item, self._on_pin, self._on_delete))
-        first = self._list.get_row_at_index(0)
+
+    def _apply_filter(self) -> None:
+        self._list.invalidate_filter()
+        first = next(
+            (row for row in self._clip_rows() if self._row_matches_search(row)),
+            None,
+        )
         if first is not None:
             self._list.select_row(first)
+
+    def _row_matches_search(self, row: Gtk.ListBoxRow) -> bool:
+        return row.item.matches(self._search.get_text().strip())
+
+    def _clip_rows(self) -> list[ClipRow]:
+        return [row for row in self._list.get_children() if isinstance(row, ClipRow)]
+
+    def _schedule_thumbnails(self) -> None:
+        self._thumbnail_generation += 1
+        pending = iter([row for row in self._clip_rows() if row.needs_thumbnail])
+        GLib.idle_add(self._fill_thumbnails, pending, self._thumbnail_generation)
+
+    def _fill_thumbnails(self, pending, generation: int) -> bool:
+        if generation != self._thumbnail_generation:
+            return False
+        batch = _take(pending, _THUMBNAILS_PER_IDLE_TICK)
+        for row in batch:
+            self._fill_thumbnail(row)
+        return len(batch) == _THUMBNAILS_PER_IDLE_TICK
+
+    def _fill_thumbnail(self, row: ClipRow) -> None:
+        pixbuf = self._thumbnails.get(row.item.content_hash)
+        if pixbuf is None:
+            png = self._query.image_of(row.item.id)
+            if not png:
+                return
+            pixbuf = decode_thumbnail(png, THUMB_MAX_W, THUMB_MAX_H)
+            if pixbuf is None:
+                return
+            self._thumbnails.put(row.item.content_hash, pixbuf)
+        row.set_thumbnail(pixbuf)
 
     def _apply_search(self) -> None:
         """Route the shared search box to whichever page is active."""
         query = self._search.get_text().strip()
         page = self._stack.get_visible_child_name()
         if page == "clips":
-            self.refresh()
+            self._apply_filter()
         elif page == "emoji":
             self._emoji_page.set_filter(query)
         elif page == "kaomoji":
@@ -636,3 +691,11 @@ class HistoryWindow(Gtk.ApplicationWindow):
             )
         except ValueError:
             log.debug("not persisting implausible panel size %sx%s", width, height)
+
+
+def _signature_of(items) -> tuple:
+    return tuple((item.id, item.last_used_at, item.pinned) for item in items)
+
+
+def _take(iterator, count: int) -> list:
+    return [row for _, row in zip(range(count), iterator, strict=False)]

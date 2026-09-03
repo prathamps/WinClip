@@ -106,6 +106,7 @@ def _run_app(show_on_start: bool) -> int:
     from winclip.bootstrap import build_core
 
     container = build_core(with_monitor=True)
+    container.maintain()
     app = WinClipApplication(container, show_on_start=show_on_start)
     return app.run(None)
 

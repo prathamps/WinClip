@@ -1,5 +1,6 @@
 """Contract tests for the shell-history adapter."""
 
+from winclip.adapters.driven import shell_history
 from winclip.adapters.driven.shell_history import ShellHistorySource
 
 
@@ -63,3 +64,45 @@ class TestShellHistorySource:
 
     def test_empty_home_yields_empty_history(self, tmp_path):
         assert ShellHistorySource(make_home(tmp_path)).recent_commands() == []
+
+
+class TestCaching:
+    def test_unchanged_file_is_not_read_twice(self, tmp_path, monkeypatch):
+        home = make_home(tmp_path)
+        (home / ".bash_history").write_text("git status\n")
+        reads = []
+        real_tail = shell_history._tail_lines
+
+        def counting_tail(path):
+            reads.append(path)
+            return real_tail(path)
+
+        monkeypatch.setattr(shell_history, "_tail_lines", counting_tail)
+        source = ShellHistorySource(home)
+
+        assert source.recent_commands() == ["git status"]
+        assert source.recent_commands() == ["git status"]
+
+        assert reads == [home / ".bash_history"]
+
+    def test_changed_file_is_re_read(self, tmp_path):
+        home = make_home(tmp_path)
+        history = home / ".bash_history"
+        history.write_text("git status\n")
+        source = ShellHistorySource(home)
+        assert source.recent_commands() == ["git status"]
+
+        history.write_text("git status\ndocker ps\n")
+
+        assert source.recent_commands() == ["git status", "docker ps"]
+
+    def test_deleted_file_drops_out_of_the_cache(self, tmp_path):
+        home = make_home(tmp_path)
+        history = home / ".bash_history"
+        history.write_text("git status\n")
+        source = ShellHistorySource(home)
+        assert source.recent_commands() == ["git status"]
+
+        history.unlink()
+
+        assert source.recent_commands() == []

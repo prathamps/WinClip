@@ -68,3 +68,55 @@ class TestSqliteRoundtrip:
         second.close()
         assert loaded.text == "persist me"
         assert loaded.pinned is True
+
+
+class TestListingWithoutBlobs:
+    def test_list_all_omits_image_bytes_but_reports_size(self, repo):
+        blob = b"\x89PNG" * 1000
+        repo.add(ClipItem.from_image("img", blob, NOW))
+        repo.add(ClipItem.from_text("txt", "words", NOW))
+        listed = {item.id: item for item in repo.list_all()}
+        assert listed["img"].image is None
+        assert listed["img"].image_size == len(blob)
+        assert listed["img"].size_bytes == len(blob)
+        assert listed["txt"].image_size == 0
+
+    def test_find_by_hash_omits_image_bytes(self, repo):
+        blob = b"\x89PNG" * 10
+        repo.add(ClipItem.from_image("img", blob, NOW))
+        found = repo.find_by_hash(ClipItem.hash_image(blob))
+        assert found.image is None
+        assert found.image_size == len(blob)
+
+    def test_image_of_returns_bytes_for_images_only(self, repo):
+        blob = b"\x89PNG" * 10
+        repo.add(ClipItem.from_image("img", blob, NOW))
+        repo.add(ClipItem.from_text("txt", "words", NOW))
+        assert repo.image_of("img") == blob
+        assert repo.image_of("txt") is None
+        assert repo.image_of("ghost") is None
+
+
+class TestMaintenance:
+    def test_maintain_on_empty_database_is_harmless(self, repo):
+        repo.maintain()
+        assert repo.list_all() == []
+
+    def test_maintain_compacts_a_bloated_database_without_losing_rows(self, repo):
+        keeper = ClipItem.from_text("keep", "still here", NOW, pinned=True)
+        repo.add(keeper)
+        for i in range(20):
+            repo.add(ClipItem.from_image(f"big-{i}", bytes([i]) * 200_000, NOW))
+        repo.remove_many([f"big-{i}" for i in range(20)])
+        bloated = repo.page_count()
+
+        repo.maintain()
+
+        assert repo.page_count() < bloated
+        assert repo.get("keep") == keeper
+
+    def test_maintain_leaves_a_tidy_database_alone(self, repo):
+        repo.add(ClipItem.from_text("a", "tidy", NOW))
+        before = repo.page_count()
+        repo.maintain()
+        assert repo.page_count() == before
