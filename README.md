@@ -2,8 +2,9 @@
 
 **The Windows clipboard experience (Win+V) for Linux.**
 
-WinClip is a clipboard history manager for Debian-based Linux desktops that
-recreates the Windows 11 clipboard panel: press <kbd>Super</kbd>+<kbd>V</kbd>,
+WinClip is a clipboard history manager for Linux desktops (Debian/Ubuntu,
+Arch/Omarchy, GNOME, COSMIC, Hyprland, …) that recreates the Windows 11
+clipboard panel: press <kbd>Super</kbd>+<kbd>V</kbd>,
 see everything you've copied, click an item, and it's pasted into the app you
 came from.
 
@@ -36,6 +37,10 @@ came from.
   with a 4 MiB per-item limit; oldest unpinned items are evicted first.
 - **Persistent** — history lives in SQLite under `~/.local/share/winclip`
   and survives reboots.
+- **Omarchy themes** — on [Omarchy](https://omarchy.org) the panel takes
+  its colours, font, and corner rounding from the active theme, exactly
+  like Omarchy's built-in menus, and follows `omarchy theme set` the next
+  time it opens.
 - **Configurable** — history size, image capture, auto-paste, and the paste
   tool, via the in-panel preferences dialog or `winclip config`.
 - **No pip dependencies** — pure Python standard library plus the
@@ -55,11 +60,15 @@ systemctl --user enable --now winclip.service
 ### pipx
 
 ```bash
-sudo apt install python3-gi gir1.2-gtk-3.0 wl-clipboard pipx
+# Debian / Ubuntu
+sudo apt install python3-gi gir1.2-gtk-3.0 gir1.2-gtklayershell-0.1 wl-clipboard pipx
+# Arch / Omarchy
+sudo pacman -S python-gobject gtk3 gtk-layer-shell wl-clipboard wtype python-pipx
+
 pipx install --system-site-packages winclip
 ```
 
-### From source (Debian / Ubuntu)
+### From source (Debian / Ubuntu / Arch / Omarchy)
 
 ```bash
 git clone https://github.com/prathamps/WinClip.git
@@ -69,15 +78,21 @@ cd WinClip
 
 The installer:
 
-1. installs missing system packages (`python3-gi`, `gir1.2-gtk-3.0`,
-   `wl-clipboard`, and a paste-injection tool),
-2. installs the `winclip` command with pipx,
+1. installs missing system packages with apt or pacman (PyGObject, GTK 3,
+   `wl-clipboard`, `gtk-layer-shell` on Wayland, and a paste-injection
+   tool),
+2. installs the `winclip` command into its own virtualenv,
 3. enables a systemd user service so the daemon starts with your session,
-4. on GNOME, binds <kbd>Super</kbd>+<kbd>V</kbd> to the panel
-   (freeing it from the notification list).
+4. on GNOME, COSMIC, and Hyprland (including Omarchy), binds
+   <kbd>Super</kbd>+<kbd>V</kbd> to the panel — taking it over from the
+   GNOME notification list, Hyprland's float toggle, or Omarchy's
+   universal paste.
 
-On other desktops, bind a shortcut to `winclip toggle` in your DE's
-keyboard settings.
+On Hyprland the binding and window rules live in
+`~/.config/hypr/winclip.lua` (or `winclip.conf` on releases before 0.55),
+pulled in by one line at the end of your main config — edit or delete
+that file to change the key. On other desktops, bind a shortcut to
+`winclip toggle` in your DE's keyboard settings.
 
 Uninstall with `./scripts/uninstall.sh` (add `--purge` to also delete your
 history and settings).
@@ -97,6 +112,11 @@ history and settings).
 | Move the panel | Drag any empty area |
 | Resize the panel | Drag an edge — the size is remembered |
 | Dismiss | <kbd>Esc</kbd> or click elsewhere |
+
+On compositors where the panel is a layer-shell surface (Hyprland, sway,
+river, niri, KDE — see *How it works*) it always opens centered and is
+not draggable or resizable; set its size with
+`winclip config panel_width 400` / `panel_height 600` instead.
 
 ### CLI
 
@@ -132,10 +152,26 @@ Stored at `~/.config/winclip/settings.json`:
   back with `wl-copy`.
 - **X11**: the GTK clipboard's `owner-change` signal provides change
   notifications, and GTK reads/writes the selection directly.
+- **Tiling compositors**: with `gtk-layer-shell` installed, the panel is a
+  layer-shell overlay surface rather than a window, so Hyprland, sway,
+  river, niri, and KDE never tile it — it opens centered above whatever
+  you are working in, whether that window is tiled or floating, and
+  disappears without disturbing the layout. Without gtk-layer-shell (and
+  always on GNOME, which offers no layer-shell to apps) the panel is a
+  regular toplevel; on Hyprland the installer also writes float/center
+  window rules so that fallback, and the Preferences dialog, never tile.
+- **Omarchy theming**: when
+  `~/.local/state/omarchy/current/theme/colors.toml` exists, its
+  background, foreground, accent, and muted colours are mapped onto GTK's
+  named colours for the panel, the font becomes fontconfig's `monospace`
+  (the font `omarchy font set` picks), and the corner radius follows
+  Hyprland's `decoration:rounding`. The file is re-read every time the
+  panel opens, so no hook is needed.
 - Paste injection probes `ydotool` → `wtype` on Wayland and `xdotool` on
   X11. On GNOME Wayland, `ydotool` (with its daemon enabled) is the reliable
-  choice; without any tool WinClip still copies and notifies you to press
-  Ctrl+V yourself.
+  choice; on Hyprland and other wlroots-style compositors `wtype` works out
+  of the box. Without any tool WinClip still copies and notifies you to
+  press Ctrl+V yourself.
 
 ## Architecture
 

@@ -33,6 +33,7 @@ class WinClipApplication(Gtk.Application):
         self._container = container
         self._show_on_start = show_on_start
         self._window: HistoryWindow | None = None
+        _use_app_id_as_wayland_window_class()
 
     def do_startup(self) -> None:
         Gtk.Application.do_startup(self)
@@ -84,6 +85,10 @@ class WinClipApplication(Gtk.Application):
     def _on_quit(self, _action, _param) -> None:
         self.release()
         self.quit()
+
+
+def _use_app_id_as_wayland_window_class() -> None:
+    GLib.set_prgname(APP_ID)
 
 
 def send_action_to_running_instance(action: str) -> bool:

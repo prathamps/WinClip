@@ -29,6 +29,8 @@ from winclip.application import (  # noqa: E402
 )
 from winclip.catalog import EMOJI, KAOMOJI, SYMBOLS  # noqa: E402
 
+from .layer_shell import attach_layer_shell  # noqa: E402
+from .omarchy_theme import omarchy_theme_css  # noqa: E402
 from .pages import CommandsPage, SnippetPage  # noqa: E402
 from .preferences import PreferencesDialog  # noqa: E402
 from .rows import THUMB_MAX_H, THUMB_MAX_W, ClipRow  # noqa: E402
@@ -207,6 +209,9 @@ class HistoryWindow(Gtk.ApplicationWindow):
         self.set_skip_taskbar_hint(True)
         self.set_position(Gtk.WindowPosition.CENTER)
         self.set_keep_above(True)
+        self._is_layer_surface = attach_layer_shell(self)
+        if self._is_layer_surface:
+            self.set_size_request(*self._panel_size)
         self.get_style_context().add_class("winclip-panel")
         self._shown_at: int = 0
         self._dialog_open = False
@@ -245,6 +250,23 @@ class HistoryWindow(Gtk.ApplicationWindow):
             provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         )
+        self._install_desktop_theme_provider()
+
+    def _install_desktop_theme_provider(self) -> None:
+        self._desktop_theme_provider = Gtk.CssProvider()
+        self._desktop_theme_css = ""
+        Gtk.StyleContext.add_provider_for_screen(
+            Gdk.Screen.get_default(),
+            self._desktop_theme_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_USER,
+        )
+
+    def _apply_desktop_theme(self) -> None:
+        css = omarchy_theme_css()
+        if css == self._desktop_theme_css:
+            return
+        self._desktop_theme_provider.load_from_data(css.encode("utf-8"))
+        self._desktop_theme_css = css
 
     def _build_ui(self) -> None:
         panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -356,6 +378,10 @@ class HistoryWindow(Gtk.ApplicationWindow):
         # Persist a user-chosen size when the panel is dismissed rather
         # than on every configure event during the drag.
         self.connect("hide", self._persist_size)
+        if not self._is_layer_surface:
+            self._connect_drag_to_move()
+
+    def _connect_drag_to_move(self) -> None:
         # With no titlebar, the user drags the panel by any spot that
         # isn't an interactive widget. This MUST use a drag threshold:
         # starting the compositor move grab directly on button-press
@@ -404,6 +430,7 @@ class HistoryWindow(Gtk.ApplicationWindow):
             self.present_panel()
 
     def present_panel(self) -> None:
+        self._apply_desktop_theme()
         self._search.set_text("")
         self.refresh()
         commands_tab = self._stack.get_child_by_name("commands")
