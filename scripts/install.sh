@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# WinClip installer for Debian/Ubuntu-based systems.
+# WinClip installer for Debian/Ubuntu (apt) and Arch/Omarchy (pacman).
 #
-# Installs system dependencies (apt), the winclip CLI into a dedicated
+# Installs system dependencies, the winclip CLI into a dedicated
 # virtualenv, a systemd user service, the desktop entry, and — on
-# GNOME/COSMIC — binds Super+V to the history panel, just like Windows.
+# GNOME, COSMIC, and Hyprland — binds Super+V to the history panel,
+# just like Windows.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -13,6 +14,7 @@ BIN_DIR="$HOME/.local/bin"
 # installing winclip there breaks it with "No module named 'gi'".
 PYTHON=/usr/bin/python3
 VENV="$HOME/.local/share/winclip/venv"
+APP_ID="io.github.prathamps.WinClip"
 say()  { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*"; }
 
@@ -23,29 +25,56 @@ warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*"; }
 # and then produce a broken install.
 if ! "$PYTHON" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)'; then
     warn "WinClip needs Python 3.10 or newer; $PYTHON is $("$PYTHON" -V 2>&1 | cut -d' ' -f2)."
-    warn "Supported distributions: Debian 12+, Ubuntu 22.04+, Pop!_OS 22.04+."
+    warn "Supported distributions: Debian 12+, Ubuntu 22.04+, Pop!_OS 22.04+, Arch Linux, Omarchy."
     exit 1
 fi
 
 # --- 1. system dependencies -------------------------------------------------
-say "Checking system dependencies"
-APT_PKGS=()
-"$PYTHON" -c "import gi" 2>/dev/null || APT_PKGS+=(python3-gi)
-"$PYTHON" -c "import gi; gi.require_version('Gtk','3.0')" 2>/dev/null || APT_PKGS+=(gir1.2-gtk-3.0)
-"$PYTHON" -c "import ensurepip" 2>/dev/null || APT_PKGS+=(python3-venv)
-command -v wl-copy >/dev/null || APT_PKGS+=(wl-clipboard)
-
-# Optional but recommended: paste injection.
-if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
-    command -v wtype >/dev/null || command -v ydotool >/dev/null || APT_PKGS+=(wtype)
+# Package names differ per distro; the checks that decide whether a
+# package is needed do not.
+if command -v apt-get >/dev/null; then
+    PKG_MANAGER=apt
+    PKG_GI=python3-gi PKG_GTK=gir1.2-gtk-3.0 PKG_VENV=python3-venv
+    PKG_LAYER_SHELL=gir1.2-gtklayershell-0.1
+elif command -v pacman >/dev/null; then
+    PKG_MANAGER=pacman
+    PKG_GI=python-gobject PKG_GTK=gtk3 PKG_VENV=""
+    PKG_LAYER_SHELL=gtk-layer-shell
 else
-    command -v xdotool >/dev/null || APT_PKGS+=(xdotool)
+    PKG_MANAGER=none
+    PKG_GI=PyGObject PKG_GTK="GTK 3 introspection data" PKG_VENV="python venv"
+    PKG_LAYER_SHELL=gtk-layer-shell
 fi
 
-if [ "${#APT_PKGS[@]}" -gt 0 ]; then
-    say "Installing packages: ${APT_PKGS[*]}"
-    sudo apt-get update -qq
-    sudo apt-get install -y "${APT_PKGS[@]}"
+install_packages() {
+    case "$PKG_MANAGER" in
+        apt)    sudo apt-get update -qq && sudo apt-get install -y "$@" ;;
+        pacman) sudo pacman -S --needed --noconfirm "$@" ;;
+        *)      warn "No supported package manager found; install these yourself: $*"; exit 1 ;;
+    esac
+}
+
+say "Checking system dependencies"
+PKGS=()
+"$PYTHON" -c "import gi" 2>/dev/null || PKGS+=("$PKG_GI")
+"$PYTHON" -c "import gi; gi.require_version('Gtk','3.0')" 2>/dev/null || PKGS+=("$PKG_GTK")
+"$PYTHON" -c "import ensurepip" 2>/dev/null || PKGS+=(${PKG_VENV:+"$PKG_VENV"})
+command -v wl-copy >/dev/null || PKGS+=(wl-clipboard)
+
+if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
+    # Layer-shell keeps the panel out of tiling layouts (Hyprland, sway,
+    # river, niri); GNOME ignores it harmlessly.
+    "$PYTHON" -c "import gi; gi.require_version('GtkLayerShell','0.1')" 2>/dev/null \
+        || PKGS+=("$PKG_LAYER_SHELL")
+    # Optional but recommended: paste injection.
+    command -v wtype >/dev/null || command -v ydotool >/dev/null || PKGS+=(wtype)
+else
+    command -v xdotool >/dev/null || PKGS+=(xdotool)
+fi
+
+if [ "${#PKGS[@]}" -gt 0 ]; then
+    say "Installing packages: ${PKGS[*]}"
+    install_packages "${PKGS[@]}"
 fi
 
 # --- 2. the winclip package -------------------------------------------------
@@ -74,8 +103,8 @@ esac
 
 # --- 3. desktop entry & systemd user service --------------------------------
 say "Installing desktop entry and systemd user service"
-install -Dm644 "$REPO_DIR/data/io.github.prathamps.WinClip.desktop" \
-    "$HOME/.local/share/applications/io.github.prathamps.WinClip.desktop"
+install -Dm644 "$REPO_DIR/data/$APP_ID.desktop" \
+    "$HOME/.local/share/applications/$APP_ID.desktop"
 install -Dm644 "$REPO_DIR/data/winclip.service" \
     "$HOME/.config/systemd/user/winclip.service"
 systemctl --user daemon-reload
@@ -144,8 +173,57 @@ bind_gnome() {
     say "Super+V is now WinClip"
 }
 
+# Hyprland: WinClip's binding and window rules live in their own file
+# under ~/.config/hypr, pulled in by one line appended to the main
+# config. Hyprland 0.55+ (and Omarchy) is configured in Lua; older
+# releases read hyprland.conf. Super+V is unbound first because both
+# Hyprland's example config (toggle floating) and Omarchy (universal
+# paste) already use it.
+#
+# The panel itself is a layer-shell surface, so it never tiles; the
+# window rules cover the Preferences dialog and the toplevel fallback
+# used when gtk-layer-shell is missing.
+bind_hyprland() {
+    local HYPR_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/hypr"
+    local COMMAND="$BIN_DIR/winclip toggle"
+    if [ -f "$HYPR_DIR/hyprland.lua" ]; then
+        say "Binding Super+V to the WinClip panel (Hyprland, Lua config)"
+        cat > "$HYPR_DIR/winclip.lua" <<EOF
+-- WinClip: Super+V opens the clipboard history, like Windows.
+-- Written by WinClip's install.sh; remove with scripts/uninstall.sh.
+pcall(hl.unbind, "SUPER + V")
+hl.bind("SUPER + V", hl.dsp.exec_cmd("$COMMAND"), { description = "Clipboard history" })
+hl.window_rule({ match = { class = "^($APP_ID)\$" }, float = true, center = true })
+EOF
+        local LINE="dofile(\"$HYPR_DIR/winclip.lua\") -- winclip"
+        grep -qF "$HYPR_DIR/winclip.lua" "$HYPR_DIR/hyprland.lua" \
+            || printf '\n%s\n' "$LINE" >> "$HYPR_DIR/hyprland.lua"
+    elif [ -f "$HYPR_DIR/hyprland.conf" ]; then
+        say "Binding Super+V to the WinClip panel (Hyprland, hyprland.conf)"
+        cat > "$HYPR_DIR/winclip.conf" <<EOF
+# WinClip: Super+V opens the clipboard history, like Windows.
+# Written by WinClip's install.sh; remove with scripts/uninstall.sh.
+unbind = SUPER, V
+bind = SUPER, V, exec, $COMMAND
+windowrule = float, class:^($APP_ID)\$
+windowrule = center, class:^($APP_ID)\$
+EOF
+        grep -qF "winclip.conf" "$HYPR_DIR/hyprland.conf" \
+            || printf '\nsource = %s\n' "$HYPR_DIR/winclip.conf" >> "$HYPR_DIR/hyprland.conf"
+    else
+        warn "No Hyprland config found in $HYPR_DIR — bind Super+V to '$COMMAND' yourself"
+        return
+    fi
+    if command -v hyprctl >/dev/null; then
+        hyprctl reload >/dev/null || warn "hyprctl reload failed — check 'hyprctl configerrors'"
+    fi
+    say "Super+V is now WinClip (replacing Hyprland's float toggle / Omarchy's universal paste)"
+}
+
 if pgrep -x cosmic-comp >/dev/null 2>&1; then
     bind_cosmic
+elif [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || pgrep -x Hyprland >/dev/null 2>&1; then
+    bind_hyprland
 elif pgrep -x gnome-shell >/dev/null 2>&1 && command -v gsettings >/dev/null; then
     bind_gnome
 else

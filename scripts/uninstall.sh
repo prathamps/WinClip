@@ -33,6 +33,15 @@ text = re.sub(r"\(\s*[^()]*?\)\s*:\s*Spawn\(\"[^\"]*winclip toggle\"\),\n?", "",
 open(path, "w").write(text)
 EOF
 fi
+HYPR_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/hypr"
+if [ -f "$HYPR_DIR/winclip.lua" ] || [ -f "$HYPR_DIR/winclip.conf" ]; then
+    rm -f "$HYPR_DIR/winclip.lua" "$HYPR_DIR/winclip.conf"
+    [ -f "$HYPR_DIR/hyprland.lua" ] && sed -i '/winclip\.lua/d' "$HYPR_DIR/hyprland.lua"
+    [ -f "$HYPR_DIR/hyprland.conf" ] && sed -i '/winclip\.conf/d' "$HYPR_DIR/hyprland.conf"
+    if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] && command -v hyprctl >/dev/null; then
+        hyprctl reload >/dev/null || true
+    fi
+fi
 if command -v gsettings >/dev/null; then
     BASE="org.gnome.settings-daemon.plugins.media-keys"
     KEYS_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/winclip/"

@@ -21,8 +21,10 @@ tree, catching broken partially-staged commits. Bypass in an emergency
 with `git commit --no-verify`.
 
 System packages you'll want locally: `python3-gi`, `gir1.2-gtk-3.0`,
-`wl-clipboard` (Wayland), and optionally `wtype`/`ydotool`/`xdotool` for
-paste injection.
+`wl-clipboard` (Wayland), `gir1.2-gtklayershell-0.1` (tiling
+compositors), and optionally `wtype`/`ydotool`/`xdotool` for paste
+injection. On Arch/Omarchy: `python-gobject gtk3 wl-clipboard
+gtk-layer-shell wtype`.
 
 ## Ground rules
 

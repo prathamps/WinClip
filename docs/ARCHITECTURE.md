@@ -73,6 +73,9 @@ Driving (left side):
 - `driving/cli.py` — argparse CLI; also the packaging entry point.
 - `driving/gtk/` — the Win+V panel (GTK 3), preferences dialog, and the
   `Gtk.Application` shell that provides single-instance + D-Bus `toggle`.
+  `layer_shell.py` turns the panel into a Wayland layer-shell surface when
+  `GtkLayerShell` is available, so tiling compositors never tile it; the
+  panel silently stays a toplevel otherwise.
 - `driving/monitor/wayland.py` — `wl-paste --watch` as change notifier +
   one-shot fetches. Runs in a daemon thread.
 - `driving/monitor/x11.py` — GTK clipboard `owner-change` signal on the

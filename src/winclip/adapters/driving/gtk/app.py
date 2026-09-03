@@ -33,6 +33,11 @@ class WinClipApplication(Gtk.Application):
         self._container = container
         self._show_on_start = show_on_start
         self._window: HistoryWindow | None = None
+        # GTK 3 derives the Wayland app id (the window "class") from the
+        # program name, which would otherwise be "winclip" or "python3".
+        # Matching the desktop entry lets compositor window rules and
+        # icons find every WinClip window, the Preferences dialog included.
+        GLib.set_prgname(APP_ID)
 
     def do_startup(self) -> None:
         Gtk.Application.do_startup(self)

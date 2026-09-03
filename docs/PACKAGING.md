@@ -57,7 +57,7 @@ experience, Debian-family only.
 
 | Channel | Effort | Notes |
 |---|---|---|
-| **AUR** (Arch) | Low | A `PKGBUILD` over the sdist; community can own it. Arch deps: `python-gobject gtk3 wl-clipboard`. |
+| **AUR** (Arch) | Low | A `PKGBUILD` over the sdist; community can own it. Arch deps: `python-gobject gtk3 wl-clipboard gtk-layer-shell wtype` (`scripts/install.sh` already handles Arch/Omarchy from source). |
 | **Official Debian/Ubuntu** | High | Proper `debian/` dir with `dh-python`/`pybuild`, an ITP bug, a sponsor, and the freeze calendar. The current `.deb` is a stepping stone, not a substitute. |
 | **PPA / OBS repo** | Medium | Same `debian/` work, but self-served; gives users `apt upgrade`. |
 | **Flatpak** | High, degraded | See below. |
